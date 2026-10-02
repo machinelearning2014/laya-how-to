@@ -1,6 +1,6 @@
 # laya-how-to
 
-A worked example and a field reference for [laya](https://github.com/NandhaKishorM/laya), a
+An example tour and a field reference for [laya](https://github.com/NandhaKishorM/laya), a
 non-autoregressive decision engine that answers typed questions about a piece of text in a
 single forward pass. No text generation, so there is nothing to parse and nothing to hallucinate.
 
@@ -10,7 +10,7 @@ single forward pass. No text generation, so there is nothing to parse and nothin
 
 | File | What it is |
 |---|---|
-| `main.py` | Eight typed questions over one support message, exercising all three question types. Real output is in the comments. |
+| `main.py` | A twelve-section tour of the in-process API, english checkpoint only. Every printed number is real output. |
 | `index.html` | The field reference: question types, result payloads, calibrated abstention, batching, typed output, and the gotchas. Served by GitHub Pages. |
 | `.gitignore` | Keeps the virtualenv (745 MB) out of the repo. |
 
@@ -23,19 +23,22 @@ python3 -m venv .venv
 ```
 
 The first run downloads a checkpoint (about 421M parameters for the English one) and caches it
-under `~/.cache/huggingface`. Verified output:
+under `~/.cache/huggingface`. Nothing else downloads: the tour uses the english checkpoint
+throughout, and shows the multilingual and typed-decisions routing decisions through `route()`,
+which loads no weights.
+
+It prints twelve sections. The first shows routing, and the second looks like this:
 
 ```
-billing
-0.9875
-1.7901
-0.8429
-1.6361
-0.906
-0.2352
-0.373
-english
+02. Question types: choice, score, noul
+  choice -> billing of ['billing', 'technical', 'other']
+  score  -> 1.7901 on a 0..2 scale (an expected level, not an index)
+  noul   -> 0.8429 = P(true)
 ```
+
+Three of the twelve sections print a result the model got wrong, on purpose — a schema-derived
+score question, a relabelled `noul`, and a shortlist that drops the correct label. Each is
+explained where it appears, because those rough edges are more useful to read than a tidy demo.
 
 ## The three question types
 

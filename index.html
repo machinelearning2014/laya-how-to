@@ -404,7 +404,7 @@
         <li><a href="#accuracy"><span class="n">11</span>Accuracy and calibration</a></li>
         <li><a href="#finetune"><span class="n">12</span>Fine-tuning</a></li>
         <li><a href="#gotchas"><span class="n">13</span>Gotchas</a></li>
-        <li><a href="#worked"><span class="n">14</span>The worked example</a></li>
+        <li><a href="#worked"><span class="n">14</span>The example tour</a></li>
       </ol>
     </nav>
 
@@ -680,7 +680,7 @@ router = Router(agent_kwargs={<span class="s">"compile"</span>: <span class="k">
         <p><strong>Gate on <code>answer_confidence</code>.</strong> It is the calibrated quantity &mdash; the one temperature scaling fits and ECE measures &mdash; and it means the same thing across all three types. The entropy <code>confidence</code> is useful for ranking, but it drifts with how many options a question has, so a threshold on it does not transfer between questions.</p>
 
         <h3>Why that distinction bites</h3>
-        <p>Look at the two <code>noul</code> answers from the worked example:</p>
+        <p>Every answer from the tour, sorted by how much the model actually committed to it:</p>
 
         <div class="tablewrap">
           <table>
@@ -690,14 +690,16 @@ router = Router(agent_kwargs={<span class="s">"compile"</span>: <span class="k">
               <tr><td><code>refund_requested</code></td><td><span class="tag">noul</span></td><td>0.906</td><td class="num">0.906</td><td>confident yes</td></tr>
               <tr><td><code>churn_risk</code></td><td><span class="tag">noul</span></td><td>0.8429</td><td class="num">0.8429</td><td>confident yes</td></tr>
               <tr><td><code>urgency</code></td><td><span class="tag">score</span></td><td>1.7901</td><td class="num">0.8238</td><td>leans "blocking"</td></tr>
-              <tr><td><code>security_related</code></td><td><span class="tag">noul</span></td><td>0.373</td><td class="num">0.627</td><td>confident no</td></tr>
-              <tr><td><code>deadline_mentioned</code></td><td><span class="tag">noul</span></td><td>0.2352</td><td class="num">0.7648</td><td><strong>confident no</strong></td></tr>
+              <tr><td><code>security_related</code>, no labels</td><td><span class="tag">noul</span></td><td>0.373</td><td class="num">0.627</td><td><strong>confident no</strong></td></tr>
+              <tr><td><code>security_related</code>, labelled</td><td><span class="tag">noul</span></td><td>0.5386</td><td class="num">0.5386</td><td>undecided</td></tr>
               <tr><td><code>sentiment</code></td><td><span class="tag">score</span></td><td>1.6361</td><td class="num">0.4619</td><td><strong>genuinely unsure</strong></td></tr>
             </tbody>
           </table>
         </div>
 
-        <p><code>deadline_mentioned</code> returns <code>noul = 0.24</code>, which looks low, but that is a <em>confident no</em>: <code>answer_confidence</code> is 0.76. Gating on the raw <code>noul</code> value would abstain on the model's most decisive answer. <code>sentiment</code> at 0.46 is the one actually worth escalating &mdash; it sits between "annoyed" and "angry" and the model is telling you so.</p>
+        <p>The fifth row is the trap. <code>security_related</code> answers <code>0.373</code>, which reads like a low-confidence result, but <code>answer_confidence</code> is <code>0.627</code> &mdash; the model is <em>confidently saying no</em>. Gating on the raw <code>noul</code> value would abstain on its most decisive answer. <code>sentiment</code> at 0.46 is the one actually worth escalating: it sits between "annoyed" and "angry", and the model is telling you so.</p>
+
+        <p>The sixth row is a different lesson. Adding custom <code>labels</code> to that same question moves it from 0.373 to 0.5386 &mdash; labels change the text the model reads, so they change the answer, not just the display.</p>
 
         <h3>Opt-in abstention</h3>
         <div class="codewrap">
@@ -954,7 +956,7 @@ router = Router(hooks=[Metrics()], hooks_raise=<span class="k">False</span>, hoo
 
         <p><strong>1. Check truncation first.</strong> On long inputs, a large share of "the model got it wrong" is the state having been silently trimmed. Read <code>usage["truncated"]</code> before tuning anything.</p>
 
-        <p><strong>2. Fix the question, not the model.</strong> In the worked example, <code>urgency</code> reads 1.79 ("blocking") while <code>deadline_mentioned</code> reads a confident no. That disagreement is label design, and no amount of training resolves it &mdash; you would only be training the model to imitate your own ambiguity.</p>
+        <p><strong>2. Fix the question, not the model.</strong> The tour measures one <code>noul</code> question twice, with and without custom labels, and gets 0.37 and 0.54. The wording the model reads is part of the question. No amount of training resolves an ambiguous instruction &mdash; you would only be training the model to imitate your own ambiguity.</p>
 
         <p><strong>3. Fit temperatures on labeled data.</strong> This changes <em>confidence only</em>: temperature scaling leaves argmax and accuracy untouched. It is what makes gating meaningful.</p>
 
@@ -1212,12 +1214,13 @@ agent.predict(state, questions)   <span class="c"># same call, same answer shape
 
       <!-- ================= 14 ================= -->
       <section id="worked">
-        <h2>The worked example</h2>
-        <p>Eight questions over one support message: two scores, four nouls, one choice. Every number below is real output from this file.</p>
+        <h2>The example tour</h2>
+        <p><code>main.py</code> in the repository is a twelve-section tour that runs end to end against the cached english checkpoint &mdash; no extra downloads, no configuration. Every number it prints is real output, which is why three of its sections report a result the model got wrong rather than a tidy one.</p>
+
+        <p>Read the whole file at <a href="https://github.com/machinelearning2014/laya-how-to/blob/main/main.py">github.com/machinelearning2014/laya-how-to/blob/main/main.py</a>, or run it with <code>.venv/bin/python main.py</code>. The core pattern it is built around:</p>
 
         <div class="codewrap">
-          <span class="filename">main.py</span>
-          <button class="copy" type="button" data-copy>copy</button>
+          <span class="filename">the core pattern, from main.py</span>
           <div class="codeblock is-accent"><pre><span class="k">from</span> laya <span class="k">import</span> Router
 
 router = Router()  <span class="c"># downloads a checkpoint on first use</span>
@@ -1231,49 +1234,39 @@ questions = {
     <span class="s">"urgency"</span>: {<span class="s">"type"</span>: <span class="s">"score"</span>, <span class="s">"instructions"</span>: <span class="s">"How urgent is `message`?"</span>,
                 <span class="s">"criteria"</span>: [<span class="s">"not urgent"</span>, <span class="s">"soon"</span>, <span class="s">"blocking"</span>]},
     <span class="s">"churn_risk"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>, <span class="s">"instructions"</span>: <span class="s">"Does `message` threaten to cancel or leave?"</span>},
-    <span class="s">"sentiment"</span>: {<span class="s">"type"</span>: <span class="s">"score"</span>, <span class="s">"instructions"</span>: <span class="s">"How unhappy is the user in `message`?"</span>,
-                  <span class="s">"criteria"</span>: [<span class="s">"neutral"</span>, <span class="s">"annoyed"</span>, <span class="s">"angry"</span>, <span class="s">"furious"</span>]},
-    <span class="s">"refund_requested"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>, <span class="s">"instructions"</span>: <span class="s">"Does `message` ask for money back?"</span>,
-                         <span class="s">"criteria"</span>: {<span class="s">"true"</span>: <span class="s">"asks for a refund or a charge reversed"</span>,
-                                      <span class="s">"false"</span>: <span class="s">"no refund requested"</span>}},
-    <span class="s">"deadline_mentioned"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>,
-                           <span class="s">"instructions"</span>: <span class="s">"Does `message` name a deadline or time pressure?"</span>},
-    <span class="s">"security_related"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>,
-                         <span class="s">"instructions"</span>: <span class="s">"Does `message` report fraud, account compromise or a data breach?"</span>},
+    <span class="c"># ... four more, including a noul carrying custom labels</span>
 }
 
-<span class="k">def</span> main() -&gt; <span class="k">None</span>:
-    result = router.predict(state, questions)
+result = router.predict(state, questions)
 
-    print(result[<span class="s">"answers"</span>][<span class="s">"department"</span>][<span class="s">"choice"</span>])            <span class="c"># billing</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"department"</span>][<span class="s">"answer_confidence"</span>])  <span class="c"># 0.9875 -- max(p)</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"urgency"</span>][<span class="s">"score"</span>])                <span class="c"># 1.79  -- 0..2 scale</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"churn_risk"</span>][<span class="s">"noul"</span>])              <span class="c"># 0.84  -- P(true)</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"sentiment"</span>][<span class="s">"score"</span>])              <span class="c"># 1.64  -- 0..3 scale</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"refund_requested"</span>][<span class="s">"noul"</span>])        <span class="c"># 0.91</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"deadline_mentioned"</span>][<span class="s">"noul"</span>])      <span class="c"># 0.24  -- a confident no</span>
-    print(result[<span class="s">"answers"</span>][<span class="s">"security_related"</span>][<span class="s">"noul"</span>])        <span class="c"># 0.37</span>
-    print(result[<span class="s">"routing"</span>][<span class="s">"model"</span>])                           <span class="c"># english</span>
-
-
-<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
-    main()</pre></div>
+result[<span class="s">"answers"</span>][<span class="s">"department"</span>][<span class="s">"choice"</span>]             <span class="c"># billing</span>
+result[<span class="s">"answers"</span>][<span class="s">"department"</span>][<span class="s">"answer_confidence"</span>]  <span class="c"># 0.9875 -- max(p)</span>
+result[<span class="s">"answers"</span>][<span class="s">"urgency"</span>][<span class="s">"score"</span>]                <span class="c"># 1.7901 -- 0..2 scale</span>
+result[<span class="s">"answers"</span>][<span class="s">"churn_risk"</span>][<span class="s">"noul"</span>]              <span class="c"># 0.8429 -- P(true)</span>
+result[<span class="s">"routing"</span>][<span class="s">"model"</span>]                           <span class="c"># english</span></pre></div>
         </div>
 
-        <h3>What this example demonstrates</h3>
+        <h3>What the tour covers</h3>
         <div class="ledger">
-          <div><span class="k">choice</span> <span class="v">&mdash; a dict of criteria with descriptions, read via <code>["choice"]</code></span></div>
-          <div><span class="k">score</span> <span class="v">&mdash; two different scale lengths, read as an expected level via <code>["score"]</code></span></div>
-          <div><span class="k">noul</span> <span class="v">&mdash; both bare and with true/false criteria, read as P(true) via <code>["noul"]</code></span></div>
-          <div><span class="k">routing</span> <span class="v">&mdash; reading which checkpoint answered</span></div>
-          <div><span class="k">convention</span> <span class="v">&mdash; backticked <code>`message`</code> in every instruction, so <code>presets.state_field()</code> resolves and the set is portable to the CLI</span></div>
+          <div><span class="k">01 routing</span> <span class="v">&mdash; <code>route()</code> and <code>route_batch()</code>, the precedence order, the aliases, loading no weights</span></div>
+          <div><span class="k">02 questions</span> <span class="v">&mdash; all three types, criteria dicts, and what custom labels actually change</span></div>
+          <div><span class="k">03 payload</span> <span class="v">&mdash; <code>confidence</code> against <code>answer_confidence</code>, <code>usage</code>, the gate states</span></div>
+          <div><span class="k">04 batch</span> <span class="v">&mdash; <code>predict_batch</code> with per-request budgets, truncation, <code>predict_long</code> windowing</span></div>
+          <div><span class="k">05 abstention</span> <span class="v">&mdash; <code>min_confidence</code>, per-bucket maps, the temperature clamp</span></div>
+          <div><span class="k">06 decide</span> <span class="v">&mdash; schema-driven typed output, <code>return_details</code>, abstaining to <code>None</code></span></div>
+          <div><span class="k">07 presets</span> <span class="v">&mdash; all five, the backtick convention, the email and language helpers</span></div>
+          <div><span class="k">08 hooks</span> <span class="v">&mdash; logging and metrics, and <code>ctx.skip</code> as a cache</span></div>
+          <div><span class="k">09 shortlist</span> <span class="v">&mdash; many-label questions, and what shortlisting costs</span></div>
+          <div><span class="k">10 calibration</span> <span class="v">&mdash; <code>records_from_labeled</code>, temperature fitting, saving and loading</span></div>
+          <div><span class="k">11 training</span> <span class="v">&mdash; <code>proper_reward</code>, <code>td_lambda_targets</code>, the scoring helpers</span></div>
+          <div><span class="k">12 elsewhere</span> <span class="v">&mdash; serve, MCP, CLI, evals, integrations and fine-tuning, which each need their own process</span></div>
         </div>
 
-        <p>The <code>__main__</code> guard keeps <code>import main</code> from running inference, which matters as soon as you want to reuse the question set from a test or a notebook.</p>
+        <p>Each area is a function, called in order by <code>main()</code> behind an <code>if __name__ == "__main__"</code> guard &mdash; so <code>import main</code> hands you the question set without running inference.</p>
 
         <div class="note">
-          <span class="note-head">Two questions disagree, and that is information</span>
-          <p><code>urgency</code> reads 1.79 ("blocking") while <code>deadline_mentioned</code> reads a confident no. Both can be true: the message is urgent in tone but names no actual deadline. If your routing depends on genuine time pressure, ask about the deadline and ignore the urgency score &mdash; or tighten the <code>urgency</code> criteria so "urgent tone" and "hard deadline" are not conflated in one scale.</p>
+          <span class="note-head">Three sections report a wrong answer, on purpose</span>
+          <p>The tour runs against a real model, so it shows three rough edges rather than tidying them away. A schema-derived <code>score</code> question carries level texts <code>"0"</code>, <code>"1"</code>, <code>"2"</code> and no descriptions, so <code>decide()</code> reads <code>urgency: 0</code> on a message that demands a refund today. Relabelling a <code>noul</code> with custom labels moved its P(true) from 0.37 to 0.54 &mdash; labels change what the model reads, not only what you see. And shortlisting a twelve-label question down to four dropped both <code>billing</code> and <code>refunds</code>, answering <code>security</code> where the full label set answered <code>refunds</code>.</p>
         </div>
       </section>
 

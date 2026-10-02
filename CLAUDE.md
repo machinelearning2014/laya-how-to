@@ -7,12 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A teaching repository for the `laya` decision engine (v0.3.24 in `.venv`). Two deliverables plus a
 human-facing intro:
 
-- `main.py` — the worked example: eight typed questions over one customer support message.
+- `main.py` — a twelve-section tour of the in-process API, english checkpoint only.
 - `index.html` — the field reference, and simultaneously the live GitHub Pages site.
 - `README.md` — the public-facing intro for the repo.
 
 There is no package manifest, no build step, and no test suite. Work here is either editing the
-example, editing the reference page, or verifying a claim about laya's behaviour against the
+tour, editing the reference page, or verifying a claim about laya's behaviour against the
 installed library.
 
 ## Commands
@@ -20,7 +20,7 @@ installed library.
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install laya          # first run downloads a ~421M-param checkpoint
-.venv/bin/python main.py                      # run the worked example
+.venv/bin/python main.py                      # run the whole tour (~1 min, english checkpoint)
 python3 -m http.server 8000                   # preview index.html at localhost:8000
 ```
 
@@ -36,10 +36,14 @@ Suppress the noisy first-load warning with `warnings.filterwarnings('ignore')` w
 
 ## Architecture
 
-**`main.py`** holds a module-level `router`, `state`, and `questions`, with the prediction inside
-`main()` behind an `if __name__ == "__main__"` guard. That guard is load-bearing: it lets tests,
-notebooks, and other tools `import main` to reuse the question set without triggering a full
-inference pass.
+**`main.py`** is a flat script: shared fixtures (`STATE`, `QUESTIONS`, a module-level `router`) at
+the top, then one `show_*()` function per API area, called in order by `main()` behind an
+`if __name__ == "__main__"` guard. That guard is load-bearing: it lets tests, notebooks, and other
+tools `import main` to reuse the question set without triggering a full inference pass.
+
+Keep it english-only. The multilingual and typed-decisions checkpoints are not cached, so importing
+them here would turn a fast offline run into a ~750 MB download. Areas that need them are shown
+through `route()` (which loads no weights) or listed in the final section as separate processes.
 
 **`index.html`** is deliberately self-contained — inline CSS and JS, no external scripts, no build
 tooling, no image assets. The only external request is Google Fonts. Keep it that way; it is served
@@ -58,15 +62,19 @@ own convention: `laya.presets.state_field()` scrapes the name back out to learn 
 text, which is what keeps a question set usable from the CLI (`laya --questions`) and `decide()`.
 A set that names no field resolves to `None` and loses that portability.
 
-**Comments carry real observed output.** The trailing comments in `main.py` are the actual values
-from a run, not illustrations. Rewording an instruction shifts the numbers, so re-run
-`.venv/bin/python main.py` and update them in the same change.
+**Everything printed is real observed output.** `main.py` prints live values rather than hardcoding
+them, and the trailing comments in the question dict quote a real run. Rewording an instruction
+shifts the numbers, so re-run `.venv/bin/python main.py` and update any quoted value in the same
+change. The reference page quotes these numbers too, so it needs the same pass.
+
+**Three tour sections deliberately show a wrong answer.** `decide()` returning `urgency: 0`,
+relabelling moving a `noul` from 0.37 to 0.54, and shortlisting dropping the correct label. These
+are documented findings, not bugs to fix — if an edit makes them disappear, check whether a claim
+elsewhere on the reference page has gone stale.
 
 **Gate on `answer_confidence`, not the raw value.** For `noul`, a low number is a *confident no*
-rather than uncertainty: `deadline_mentioned` returns `noul = 0.24` with `answer_confidence = 0.76`.
-The genuinely uncertain answer in the example is `sentiment` at `0.46`. The same applies to `choice`
-and `score`, where the entropy `confidence` drifts with option count and `answer_confidence` (max p)
-does not.
+rather than uncertainty. The same applies to `choice` and `score`, where the entropy `confidence`
+drifts with option count and `answer_confidence` (max p) does not.
 
 **`.venv/` is 745 MB and gitignored.** Never commit it or add it to the index.
 
