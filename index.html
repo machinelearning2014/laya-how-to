@@ -401,9 +401,10 @@
         <li><a href="#cli"><span class="n">08</span>Presets and the CLI</a></li>
         <li><a href="#serve"><span class="n">09</span>Serving and integrations</a></li>
         <li><a href="#hooks"><span class="n">10</span>Hooks</a></li>
-        <li><a href="#accuracy"><span class="n">11</span>Accuracy and fine-tuning</a></li>
-        <li><a href="#gotchas"><span class="n">12</span>Gotchas</a></li>
-        <li><a href="#worked"><span class="n">13</span>The worked example</a></li>
+        <li><a href="#accuracy"><span class="n">11</span>Accuracy and calibration</a></li>
+        <li><a href="#finetune"><span class="n">12</span>Fine-tuning</a></li>
+        <li><a href="#gotchas"><span class="n">13</span>Gotchas</a></li>
+        <li><a href="#worked"><span class="n">14</span>The worked example</a></li>
       </ol>
     </nav>
 
@@ -977,77 +978,23 @@ thresholds = fit_abstention_thresholds(records, temperature, temperature_by_opti
 router.predict(state, questions, min_confidence=thresholds)</pre></div>
         </div>
 
-        <h3>What fine-tuning actually does</h3>
-
-        <p>The method is RLCD, and the design choice that matters is that training targets are the teacher's <strong>full probability distribution</strong>, not a hard label. One training item is a <code>(state, question)</code> pair carrying a target vector over the options.</p>
-
-        <p>The reward is a <em>strictly proper</em> scoring rule, which is why the output probabilities stay meaningful instead of collapsing into overconfident point estimates. From the installed source:</p>
+        <p><strong>5. If a bucket stays miscalibrated, bin it.</strong> Temperature scaling applies one scalar per bucket, so it cannot repair a bucket whose reliability curve is not a simple sharpening or softening. The shipped <code>choice:11+</code> entry is exactly that case, and it is why the warning below appears at all. Histogram binning is the non-parametric alternative, and it composes on top of the temperature map rather than replacing it:</p>
 
         <div class="codewrap">
-          <div class="codeblock"><pre><span class="c"># laya.common.proper_reward -- strictly proper scoring rule</span>
-log_score = (target &middot; log q)                      <span class="c"># floored at -9.21 nats</span>
-sph       = (target &middot; q) / &#8214;q&#8214;                 <span class="c"># spherical score</span>
-reward    = log_score + w_sph &middot; sph
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_binning_map, apply_binning_map
 
-<span class="c"># the ranked probability term applies to score questions only</span>
-reward   -= w_rps &middot; RPS &middot; is_score</pre></div>
+binning = fit_binning_map(records, temperature, temperature_by_options, bins=<span class="n">15</span>)
+<span class="c"># {bucket: {"bins": 15, "values": [...]}} -- buckets below the floor (200) are omitted,</span>
+<span class="c"># and an empty bin maps to its own midpoint so an unseen value is never forced to 0</span>
+
+confidence = apply_binning_map(answer_confidence, bucket, binning)</pre></div>
         </div>
 
-        <p>Strict propriety is the whole point: a model trained against it is rewarded for reporting its true belief. A cross-entropy-only objective would train it to be decisive rather than calibrated. Note that the library default is <code>w_sph=0.5</code>, while the fine-tuning scripts pass <strong>0.75</strong> &mdash; do not assume you are matching their recipe if you call <code>proper_reward</code> yourself.</p>
+        <h3>Calibration is not the same lever as training</h3>
 
-        <h3>The recipe</h3>
+        <p>It is worth being precise about what each one changes. Calibration alters what the numbers <em>mean</em> &mdash; it re-scales confidence so a threshold means what you think it means. Fine-tuning alters what the model <em>answers</em>. The first is cheap, needs a few hundred labeled examples, and never changes an argmax. The second needs a teacher, a GPU and a training loop.</p>
 
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Knob</th><th>Value</th></tr></thead>
-            <tbody>
-              <tr><td>What is trained</td><td>the <strong>full model</strong>: encoder plus head. No LoRA, no frozen encoder</td></tr>
-              <tr><td>Learning rates</td><td>encoder <code>2.5e-5</code>, head <code>1e-4</code> (differential)</td></tr>
-              <tr><td>Optimizer</td><td>AdamW, <code>weight_decay=0.01</code>, cosine schedule to <code>eta_min=1e-6</code></td></tr>
-              <tr><td>Epochs / batch</td><td>4 epochs, effective batch 64 (8 per GPU &times; 2 &times; accum 4)</td></tr>
-              <tr><td>Method</td><td>GRPO-style: 4 noisy logit samples per step, Gaussian noise &sigma; annealed <code>0.4 &rarr; 0.1</code>, normalized advantage, plus a cross-entropy term</td></tr>
-              <tr><td>Precision</td><td>fp16 + GradScaler, grad clip 1.0, gradient checkpointing on</td></tr>
-              <tr><td>Token budgets</td><td><code>max_len=1024</code>, <code>head_max_len=256</code></td></tr>
-              <tr><td>Then</td><td>per-type temperature fit (LBFGS) on a &le;400-item holdout taken <em>before</em> sharding</td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p>Training data is a <code>.pt</code> pickle of tokenized items, not JSONL. The demo set is 1,200 cases, which expands to 6,000 typed decisions. Output is an ordinary laya checkpoint directory: <code>model.safetensors</code>, <code>encoder/</code>, <code>tokenizer/</code> and <code>rl_agent_config.json</code>, loadable with <code>laya.load("your-org/your-checkpoint")</code>.</p>
-
-        <div class="note">
-          <span class="note-head">The pip package ships no trainer</span>
-          <p><code>laya</code> gives you <code>proper_reward</code>, <code>td_lambda_targets</code> and the calibration tools. The training loop itself lives in the repository's notebooks &mdash; there is no <code>laya.fit()</code>. Budget for adapter work, not a one-line call.</p>
-        </div>
-
-        <h3>What it costs</h3>
-
-        <div class="ledger">
-          <div><span class="k">Kaggle 2&times;T4</span> <span class="v">&mdash; ~4&ndash;6 minutes for the 6,000-decision demo, free tier</span></div>
-          <div><span class="k">Larger set</span> <span class="v">&mdash; ~4&ndash;5 hours for 4 epochs over ~30k questions, same hardware</span></div>
-          <div><span class="k">RTX 4070 Ti SUPER</span> <span class="v">&mdash; ~2 hours for 4 epochs on the 421M model (a separate case study)</span></div>
-          <div><span class="k">Apple Silicon MPS</span> <span class="v">&mdash; a script exists, but the project publishes no timing. Assume substantially slower</span></div>
-        </div>
-
-        <h3>Honest limits</h3>
-
-        <ul class="plain">
-          <li><strong>Your teacher labels are the ceiling.</strong> RLCD imitates a distribution, so noisy labels teach the model your noise. The benchmark's own teacher-self-agreement ceiling is 0.735, and the published model reached 0.766 &mdash; it can edge past the teacher, but the teacher still sets the scale.</li>
-          <li><strong>The calibration holdout is small</strong> (&le;400 items, about 10%). Enough to fit three per-type scalars, not enough to validate against. Hold out your own eval set.</li>
-          <li><strong>No minimum dataset size is documented, and no release gates ship</strong> with the fine-tuning code. You define the acceptance threshold; the project only reports against the baselines above.</li>
-          <li><strong>Labels must fit the three primitives.</strong> If they are not a choice, a scale, or a yes/no, reshape them first.</li>
-          <li><strong>Fine-tuning can fail in specific ways.</strong> In the project's browser-agent case study, class imbalance taught the model a shortcut ("any prior history &rarr; DONE") from a spurious correlation; templated phrasing leaked into targets; and run-to-run variance exceeded the gap between two different backbones. Confidence-gated escalation to a much larger model made results <em>worse</em> than the small head.</li>
-        </ul>
-
-        <div class="codewrap">
-          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_temperatures, records_from_labeled
-
-records = records_from_labeled(agent, labeled_pairs)
-temperature = fit_temperatures(records)
-
-agent.save_calibration(<span class="s">"calibration.json"</span>)   <span class="c"># temperatures + checkpoint identity, no weights</span>
-agent.load_calibration(<span class="s">"calibration.json"</span>)</pre></div>
-        </div>
+        <p>So: run the cheap levers, measure on held-out data, and only then decide whether the accuracy gap justifies training. The full workflow &mdash; data, objective, recipe, cost and failure modes &mdash; has its own section: <a href="#finetune">Fine-tuning</a>.</p>
 
         <h3>The clamp that produces that warning</h3>
         <p>On first load the shipped english checkpoint emits this:</p>
@@ -1061,6 +1008,193 @@ affected entries as uncalibrated.</pre></div>
       </section>
 
       <!-- ================= 12 ================= -->
+      <section id="finetune">
+        <h2>Fine-tuning</h2>
+
+        <p class="lede">Zero-shot sits barely above chance on a bespoke label set, and fine-tuning is what fixes that. This is the whole workflow: what data you need, what the objective rewards, the recipe, the cost, and the ways it fails.</p>
+
+        <h3>What you need before you start</h3>
+        <ul class="plain">
+          <li><strong>Labeled examples</strong> that fit the three primitives. A choice, a scale, or a yes/no &mdash; reshape anything else first.</li>
+          <li><strong>A teacher</strong> whose probabilities you trust. Targets are distributions, not labels, so the teacher's quality is the ceiling on yours.</li>
+          <li><strong>A GPU budget.</strong> A free Kaggle 2&times;T4 session covers the demo set; a 30k-question set is a few hours.</li>
+          <li><strong>Willingness to write the loop.</strong> The pip package ships no trainer.</li>
+        </ul>
+
+        <h3>The data</h3>
+
+        <p>A training item is one <code>(state, question)</code> pair carrying a <strong>target distribution over that question's options</strong>. Not a hard label. This is the single most important thing to get right, because the entire calibration story depends on it.</p>
+
+        <p>Where targets come from, in practice:</p>
+
+        <ul class="plain">
+          <li><strong>A stronger model's distribution.</strong> Put the question to a frontier LLM and take its probability over each option. This is what the project's own demo set does.</li>
+          <li><strong>Multi-labeler agreement.</strong> If several people label the same item, their agreement rate gives you a soft target &mdash; five of six agreeing becomes 0.83. More work, but it captures genuine human ambiguity rather than one model's idiosyncrasy.</li>
+        </ul>
+
+        <div class="note">
+          <span class="note-head">You are teaching the model your noise</span>
+          <p>RLCD imitates whatever distribution you hand it. If the teacher is inconsistent about a class, the fine-tuned model learns that inconsistency faithfully. Measure teacher agreement on a sample before spending hours on the full set.</p>
+        </div>
+
+        <p>The demo set is 1,200 cases expanding to <strong>6,000 typed decisions</strong> across four workflows. Tokenized items are cached to a PyTorch pickle (<code>train_items.pt</code>) with a <code>.meta.json</code> sidecar, keyed by model directory, token budgets, dataset and split &mdash; so changing any of those invalidates the cache automatically. Items whose marker count does not match the option count are dropped.</p>
+
+        <p>One tokenized item is <code>{ids, markers, qtype, target, label}</code>: token ids, option positions, question type, target distribution, and its argmax. The demo dataset stores rows as string-encoded JSON fields (<code>id</code>, <code>workflow</code>, <code>state</code>, <code>questions</code>, <code>gold</code>). To use your own data, keep that row schema and replace the two loader calls.</p>
+
+        <p>No minimum dataset size is documented anywhere, and there is no guidance on overfitting &mdash; the demo simply uses 1,200 cases. Treat that as a starting point rather than a recommendation, and track held-out accuracy as you scale.</p>
+
+        <h3>The objective is a proper scoring rule</h3>
+
+        <p>The method is RLCD, and the design choice that matters is that the reward is a <em>strictly proper</em> scoring rule. Proper means it is maximised by reporting your true belief, which is exactly why the output probabilities stay meaningful instead of collapsing into overconfident point estimates. A cross-entropy-only objective would train the model to be decisive rather than calibrated. From the installed source:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="c"># laya.common.proper_reward -- strictly proper scoring rule</span>
+log_score = (target &middot; log q)                      <span class="c"># floored at -9.21 nats</span>
+sph       = (target &middot; q) / &#8214;q&#8214;                 <span class="c"># spherical score</span>
+reward    = log_score + w_sph &middot; sph
+
+<span class="c"># the ranked probability term applies to score-type questions only</span>
+reward   -= w_rps &middot; RPS &middot; is_score</pre></div>
+        </div>
+
+        <div class="note">
+          <span class="note-head">The weights differ between the library and the scripts</span>
+          <p>The library default is <code>w_sph=0.5</code>. The fine-tuning scripts pass <strong>0.75</strong>. If you call <code>proper_reward</code> yourself, you are not matching their recipe unless you pass it explicitly.</p>
+        </div>
+
+        <p>Each step draws <strong>4 noisy samples</strong> of the clean logits, with Gaussian noise whose scale &sigma; is annealed from <code>0.4</code> down to <code>0.1</code> across epochs. Reward is computed under <code>no_grad</code>, the advantage is normalised against the group (the GRPO baseline), and the policy term is a Gaussian log-density on the noisy versus clean logits. A cross-entropy term is added alongside. There is also an <code>activation</code> term in the loss, but it is multiplied by <code>0.0</code>, so it contributes nothing.</p>
+
+        <p><code>td_lambda_targets</code> exists in the library for multi-turn conversation trajectories, and is <strong>not used</strong> by either fine-tuning script &mdash; the typed-decisions data is single-turn.</p>
+
+        <h3>The recipe</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Knob</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>What is trained</td><td>the <strong>full model</strong>: encoder plus head. No LoRA, no frozen encoder &mdash; the two are only partitioned for differential learning rates</td></tr>
+              <tr><td>Learning rates</td><td>encoder <code>2.5e-5</code>, head <code>1e-4</code></td></tr>
+              <tr><td>Optimizer</td><td>AdamW, <code>weight_decay=0.01</code>, cosine schedule to <code>eta_min=1e-6</code></td></tr>
+              <tr><td>Epochs / batch</td><td>4 epochs, effective batch 64 (micro-batch 8 &times; 2 GPUs &times; accum 4)</td></tr>
+              <tr><td>Group size</td><td>4 noisy samples per step</td></tr>
+              <tr><td>Noise schedule</td><td>&sigma; <code>0.4 &rarr; 0.1</code>, linear in epoch</td></tr>
+              <tr><td>Precision</td><td>fp16 with GradScaler, gradient clip 1.0</td></tr>
+              <tr><td>Checkpointing</td><td>gradient checkpointing on for encoder and head</td></tr>
+              <tr><td>Token budgets</td><td><code>max_len=1024</code>, <code>head_max_len=256</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>The loop</h3>
+
+        <p>Six steps, in this order. Calibration happens inside the training run, not as an afterthought.</p>
+
+        <div class="ledger">
+          <div><span class="k">1. preprocess</span> <span class="v">&mdash; tokenize every training case to soft targets, write the pickle both ranks read</span></div>
+          <div><span class="k">2. train</span> <span class="v">&mdash; 4 epochs, DDP across the GPUs</span></div>
+          <div><span class="k">3. calibrate</span> <span class="v">&mdash; fit one temperature per question type, on rank 0, after the last epoch</span></div>
+          <div><span class="k">4. evaluate</span> <span class="v">&mdash; predict the held-out split, record metrics and per-case latency</span></div>
+          <div><span class="k">5. export</span> <span class="v">&mdash; write the checkpoint directory</span></div>
+          <div><span class="k">6. publish</span> <span class="v">&mdash; optional: model card plus benchmark report to the Hub</span></div>
+        </div>
+
+        <p>On the Kaggle 2&times;T4 path the training step is a DDP launch:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>torchrun --standalone --nproc_per_node=<span class="n">2</span> train_ddp.py</pre></div>
+        </div>
+
+        <p>For a single machine there is a standalone script that runs the same loop on MPS or CPU:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>python notebooks/laya_finetune_typed_decisions_mps.py --epochs <span class="n">2</span> --micro-batch <span class="n">1</span> --grad-accum <span class="n">32</span>
+python notebooks/laya_finetune_typed_decisions_mps.py --device cpu
+python notebooks/laya_finetune_typed_decisions_mps.py --model-dir ./laya_base --items ./train_items.pt</pre></div>
+        </div>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Flag</th><th class="num">Default</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>--model-dir</code></td><td class="num">&mdash;</td><td>local base checkpoint to fine-tune</td></tr>
+              <tr><td><code>--output-dir</code></td><td class="num">&mdash;</td><td>where to write the result</td></tr>
+              <tr><td><code>--items</code></td><td class="num">./train_items.pt</td><td>the preprocessed item cache</td></tr>
+              <tr><td><code>--model-id</code></td><td class="num">convaiinnovations/laya</td><td>Hub id to pull the base from</td></tr>
+              <tr><td><code>--epochs</code></td><td class="num">4</td><td>training epochs</td></tr>
+              <tr><td><code>--micro-batch</code></td><td class="num">2</td><td>sequences per step</td></tr>
+              <tr><td><code>--grad-accum</code></td><td class="num">16</td><td>accumulation steps (2 &times; 16 = effective 32 here)</td></tr>
+              <tr><td><code>--calib-max</code></td><td class="num">400</td><td>items held out for the temperature fit</td></tr>
+              <tr><td><code>--device</code></td><td class="num">auto</td><td><code>auto</code>, <code>mps</code> or <code>cpu</code></td></tr>
+              <tr><td><code>--force-preprocess</code></td><td class="num">off</td><td>rebuild the item cache</td></tr>
+              <tr><td><code>--no-checkpointing</code></td><td class="num">off</td><td>disable gradient checkpointing</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Note the MPS script has <strong>no evaluation phase</strong> &mdash; it prepares, trains, calibrates and saves, and computes nothing afterwards. You supply your own evaluation.</p>
+
+        <h3>Calibration runs inside the loop</h3>
+
+        <p>After the final epoch, one temperature per question type is fit by LBFGS on the log-temperature, minimising the negative log-likelihood of the temperature-scaled logits. Two details matter more than the optimisation itself:</p>
+
+        <ul class="plain">
+          <li><strong>The holdout is taken before sharding.</strong> <code>--calib-max</code> (400) items are drawn from the front of a seeded shuffle before the data is split across DDP ranks, so every rank fits on the same slice. It is about 10% of the demo set &mdash; enough to fit three scalars, not enough to validate against. Hold out your own eval data separately.</li>
+          <li><strong>Inherited <code>temperature_by_options</code> must be removed.</strong> The bucket map takes precedence over the per-type scalar at inference, so a checkpoint that carries an inherited map will silently <em>mask</em> your new fit. The notebook deletes it when writing <code>rl_agent_config.json</code>. Ship the config, not just the weights.</li>
+        </ul>
+
+        <p>If fewer than ten samples land in a group the fit returns <code>1.0</code>, and an empty group defaults to <code>1.2</code>. Remember that the agent clamps everything to <code>[0.5, 5.0]</code> on load, no matter what the fitter produced &mdash; the same clamp that produces the warning described in <a href="#accuracy">Accuracy and calibration</a>.</p>
+
+        <h3>Evaluating the result</h3>
+
+        <p>The notebook computes a wider set than accuracy alone: <strong>accuracy</strong>, soft accuracy, <strong>Brier score</strong>, <strong>ECE</strong>, score MAE, within-one-level, KL divergence, total variation, latency p50 and p95, cost per case, and a per-workflow accuracy breakdown. The per-workflow column is the one to read first &mdash; an aggregate can improve while one workflow regresses.</p>
+
+        <div class="note">
+          <span class="note-head">No release gates ship with this</span>
+          <p>There is no accuracy, ECE or AURC threshold in the fine-tuning code that blocks a bad model from being published. The project reports its numbers against the baselines in the previous section and stops there. You define the acceptance bar, which means you also have to hold out the data to measure against it.</p>
+        </div>
+
+        <h3>What you get</h3>
+
+        <p>The export is an ordinary laya checkpoint directory, which means it loads through the same API as anything else:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>your-checkpoint/
+  model.safetensors        <span class="c"># full state dict, half precision</span>
+  encoder/                 <span class="c"># config + weights</span>
+  tokenizer/
+  rl_agent_config.json     <span class="c"># per-type temperatures, fine_tuned flag</span>
+  checkpoint_meta.json</pre></div>
+        </div>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">import</span> laya
+
+agent = laya.load(<span class="s">"your-org/your-checkpoint"</span>)
+agent.predict(state, questions)   <span class="c"># same call, same answer shape as any other checkpoint</span></pre></div>
+        </div>
+
+        <p>A rolling <code>checkpoint_latest/</code> is overwritten each epoch, so a timeout or an OOM costs you one epoch rather than the run. On publish the directory also gains a model card and <code>benchmark_report.json</code>.</p>
+
+        <h3>How fine-tuning fails</h3>
+
+        <p>The project's browser-agent case study is the most useful evidence available, precisely because the run did <em>not</em> go cleanly. The failure modes it documents are the ones to watch for in your own data:</p>
+
+        <ul class="plain">
+          <li><strong>Class-imbalance leaks teach shortcuts.</strong> When every positive example happened to include a prior action and no negative example did, the model learned "any history &rarr; DONE" &mdash; a spurious correlation, not the task. Mid-task negatives are needed to break it.</li>
+          <li><strong>Templated phrasing leaks.</strong> Positives generated from a template share wording, and the model learns the template instead of the concept. Positives must be real, varied examples.</li>
+          <li><strong>A narrow dataset starves rare classes.</strong> One source contained no examples of an entire operation, so that class was effectively untrainable until it was re-weighted.</li>
+          <li><strong>Truncation can cost accuracy silently.</strong> Cutting page text to 3,000 characters saved no time &mdash; the option head dominates the sequence &mdash; and cost 0.04 top-1 accuracy.</li>
+          <li><strong>Run-to-run variance can exceed real differences.</strong> In that study the variance between seeds was larger than the gap between two different backbone sizes, which means a single run cannot tell you which model is better.</li>
+          <li><strong>Escalating to a bigger model can make things worse.</strong> Confidence-gated routing to a local 8B/27B model performed worse than the 421M head it was meant to improve on.</li>
+        </ul>
+
+        <div class="note">
+          <span class="note-head">A fine-tuned model is not automatically better</span>
+          <p>Every one of those failures produced a model that trained successfully and scored worse. Budget for an evaluation harness and a baseline, not just a training run.</p>
+        </div>
+      </section>
+
+      <!-- ================= 13 ================= -->
       <section id="gotchas">
         <h2>Gotchas</h2>
         <ul class="gotchas">
@@ -1076,7 +1210,7 @@ affected entries as uncalibrated.</pre></div>
         </ul>
       </section>
 
-      <!-- ================= 13 ================= -->
+      <!-- ================= 14 ================= -->
       <section id="worked">
         <h2>The worked example</h2>
         <p>Eight questions over one support message: two scores, four nouls, one choice. Every number below is real output from this file.</p>
