@@ -1,0 +1,91 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repository is
+
+A teaching repository for the `laya` decision engine (v0.3.24 in `.venv`). Two deliverables plus a
+human-facing intro:
+
+- `main.py` — the worked example: eight typed questions over one customer support message.
+- `index.html` — the field reference, and simultaneously the live GitHub Pages site.
+- `README.md` — the public-facing intro for the repo.
+
+There is no package manifest, no build step, and no test suite. Work here is either editing the
+example, editing the reference page, or verifying a claim about laya's behaviour against the
+installed library.
+
+## Commands
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install laya          # first run downloads a ~421M-param checkpoint
+.venv/bin/python main.py                      # run the worked example
+python3 -m http.server 8000                   # preview index.html at localhost:8000
+```
+
+Verify any claim about the library before writing it down, by running a snippet in the venv:
+
+```bash
+.venv/bin/python -c "import laya; print(laya.__version__)"
+.venv/bin/python -c "from laya.router import Router; help(Router.predict)"
+```
+
+Checkpoint downloads are cached under `~/.cache/huggingface`, so repeat runs are offline and fast.
+Suppress the noisy first-load warning with `warnings.filterwarnings('ignore')` when scripting.
+
+## Architecture
+
+**`main.py`** holds a module-level `router`, `state`, and `questions`, with the prediction inside
+`main()` behind an `if __name__ == "__main__"` guard. That guard is load-bearing: it lets tests,
+notebooks, and other tools `import main` to reuse the question set without triggering a full
+inference pass.
+
+**`index.html`** is deliberately self-contained — inline CSS and JS, no external scripts, no build
+tooling, no image assets. The only external request is Google Fonts. Keep it that way; it is served
+straight from the repository root by GitHub Pages, so any added dependency has to be reachable from
+a static host.
+
+The question dict is the unit of work in both files. One `predict` call packs the state and every
+question's options into a single sequence with one masked slot per option, so a single forward pass
+scores all of them. Adding a question is nearly free; splitting one call into several `predict`
+calls multiplies the cost.
+
+## Conventions to preserve
+
+**Name the state field in backticks.** Every instruction reads `` `message` ``. This is the library's
+own convention: `laya.presets.state_field()` scrapes the name back out to learn where to place the
+text, which is what keeps a question set usable from the CLI (`laya --questions`) and `decide()`.
+A set that names no field resolves to `None` and loses that portability.
+
+**Comments carry real observed output.** The trailing comments in `main.py` are the actual values
+from a run, not illustrations. Rewording an instruction shifts the numbers, so re-run
+`.venv/bin/python main.py` and update them in the same change.
+
+**Gate on `answer_confidence`, not the raw value.** For `noul`, a low number is a *confident no*
+rather than uncertainty: `deadline_mentioned` returns `noul = 0.24` with `answer_confidence = 0.76`.
+The genuinely uncertain answer in the example is `sentiment` at `0.46`. The same applies to `choice`
+and `score`, where the entropy `confidence` drifts with option count and `answer_confidence` (max p)
+does not.
+
+**`.venv/` is 745 MB and gitignored.** Never commit it or add it to the index.
+
+## Laya facts that are easy to get wrong
+
+- `Router(models=...)` is plural and constructor-only. The singular `model=` is a per-call argument
+  on `predict`.
+- Answer shapes: `choice` → `["choice"]`, `score` → `["score"]` (an *expected level* as a float, not
+  an int), `noul` → `["noul"]` (always P(true), whatever the criteria or labels say).
+- `usage["truncated"]` reports whether the state actually fit the token budget. Check it before
+  concluding the model got something wrong on a long input.
+- The English checkpoint logs a `RuntimeWarning` on load: its `choice:11+` temperatures are shipped
+  out of range and get clamped, so confidence for `choice` questions with 11+ options is
+  uncalibrated. Narrow choice questions are unaffected.
+- `questions={}` skips inference entirely and returns empty answers with no forward pass.
+
+## Deployment
+
+`origin` is `https://github.com/machinelearning2014/laya-how-to`. GitHub Pages serves
+`index.html` from the repository root of `main`, so committing and pushing to `main` publishes the
+reference site automatically; the build takes roughly 35 seconds. If `index.html` is ever renamed,
+the site root returns 404 and the page is only reachable at its full path.
