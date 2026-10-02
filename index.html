@@ -401,7 +401,7 @@
         <li><a href="#cli"><span class="n">08</span>Presets and the CLI</a></li>
         <li><a href="#serve"><span class="n">09</span>Serving and integrations</a></li>
         <li><a href="#hooks"><span class="n">10</span>Hooks</a></li>
-        <li><a href="#accuracy"><span class="n">11</span>Accuracy and calibration</a></li>
+        <li><a href="#accuracy"><span class="n">11</span>Accuracy and fine-tuning</a></li>
         <li><a href="#gotchas"><span class="n">12</span>Gotchas</a></li>
         <li><a href="#worked"><span class="n">13</span>The worked example</a></li>
       </ol>
@@ -915,9 +915,47 @@ router = Router(hooks=[Metrics()], hooks_raise=<span class="k">False</span>, hoo
       <section id="accuracy">
         <h2>Accuracy and calibration</h2>
 
-        <p>The shipped checkpoints work zero-shot. Fine-tuning on decisions from your own domain is where accuracy jumps: on the project's own typed-decisions benchmark, a fine-tuned checkpoint scored <strong>0.766</strong> against <strong>0.362</strong> for the base checkpoint on the same decisions. Treat zero-shot as a good default and a fine-tuned model as the real product.</p>
+        <p class="lede">Zero-shot works, but how well depends entirely on how close your questions sit to what the model was trained on. Fine-tuning is the lever that fixes the rest, and it is expensive enough to be worth understanding before you reach for it.</p>
 
-        <p>Before fine-tuning, two cheaper levers. Fit temperatures on labeled data, then fit abstention thresholds on the calibrated output:</p>
+        <h3>What the zero-shot number actually measures</h3>
+
+        <p>The headline figure is that a fine-tuned checkpoint scores <strong>0.766</strong> against <strong>0.362</strong> for the base english checkpoint on the project's typed-decisions benchmark. That is a real gain, but the comparison is only meaningful with the baseline it sits on:</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Model</th><th>Kind</th><th class="num">Accuracy</th><th class="num">ECE</th></tr></thead>
+            <tbody>
+              <tr><td>Random baseline</td><td>&mdash;</td><td class="num">0.318</td><td class="num">&mdash;</td></tr>
+              <tr><td>Base english checkpoint</td><td>zero-shot</td><td class="num">0.362</td><td class="num">&mdash;</td></tr>
+              <tr><td>ModernBERT-base (149M)</td><td>specialist</td><td class="num">0.646</td><td class="num">0.179</td></tr>
+              <tr><td>TypeSafe Jev 1.13.0</td><td>general</td><td class="num">0.727</td><td class="num">0.144</td></tr>
+              <tr><td>Teacher self-agreement</td><td>ceiling</td><td class="num">0.735</td><td class="num">&mdash;</td></tr>
+              <tr><td>laya-typed-decisions</td><td>fine-tuned</td><td class="num"><strong>0.766</strong></td><td class="num">&mdash;</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The benchmark is <strong>2,000 decisions across four workflows</strong> &mdash; agent trace observability, customer service, invoice processing and security incidents &mdash; with targets taken from a teacher model's probability distributions. The base checkpoint at 0.362 is barely off the random baseline of 0.318.</p>
+
+        <p>That is the crucial qualification: 0.362 is the score on <em>arbitrary typed-decision questions</em>, not on laya's own presets. So the size of the fine-tuning win depends on where your questions fall:</p>
+
+        <ul class="plain">
+          <li><strong>Questions resembling the shipped presets</strong> (<code>triage_questions()</code>, <code>guard_questions()</code>) sit near the model's training distribution. Zero-shot is the right starting point, and fine-tuning may buy little.</li>
+          <li><strong>A bespoke label set</strong> &mdash; your own categories, your own scale, your own definition of "urgent" &mdash; is the regime where zero-shot is close to a coin flip and fine-tuning is what makes the thing work at all.</li>
+        </ul>
+
+        <div class="note">
+          <span class="note-head">Confidence is not accuracy</span>
+          <p><code>answer_confidence</code> tells you the model's certainty, not its correctness. A question can return 0.98 and still be wrong. Only a labeled held-out set tells you which side of the line above you are on.</p>
+        </div>
+
+        <h3>Cheaper levers, before you spend GPU hours</h3>
+
+        <p><strong>1. Check truncation first.</strong> On long inputs, a large share of "the model got it wrong" is the state having been silently trimmed. Read <code>usage["truncated"]</code> before tuning anything.</p>
+
+        <p><strong>2. Fix the question, not the model.</strong> In the worked example, <code>urgency</code> reads 1.79 ("blocking") while <code>deadline_mentioned</code> reads a confident no. That disagreement is label design, and no amount of training resolves it &mdash; you would only be training the model to imitate your own ambiguity.</p>
+
+        <p><strong>3. Fit temperatures on labeled data.</strong> This changes <em>confidence only</em>: temperature scaling leaves argmax and accuracy untouched. It is what makes gating meaningful.</p>
 
         <div class="codewrap">
           <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_temperatures, records_from_labeled
@@ -929,19 +967,97 @@ agent.save_calibration(<span class="s">"calibration.json"</span>)   <span class=
 agent.load_calibration(<span class="s">"calibration.json"</span>)</pre></div>
         </div>
 
-        <h3>The warning you will probably see</h3>
+        <p><strong>4. Fit abstention thresholds.</strong> Also not an accuracy change, but it converts "accuracy" into "accuracy on what it chose to answer", which is usually the number that matters operationally. The default targets a 10% error rate per option-count bucket:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_abstention_thresholds
+
+thresholds = fit_abstention_thresholds(records, temperature, temperature_by_options,
+                                       target_error=<span class="n">0.10</span>)
+router.predict(state, questions, min_confidence=thresholds)</pre></div>
+        </div>
+
+        <h3>What fine-tuning actually does</h3>
+
+        <p>The method is RLCD, and the design choice that matters is that training targets are the teacher's <strong>full probability distribution</strong>, not a hard label. One training item is a <code>(state, question)</code> pair carrying a target vector over the options.</p>
+
+        <p>The reward is a <em>strictly proper</em> scoring rule, which is why the output probabilities stay meaningful instead of collapsing into overconfident point estimates. From the installed source:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="c"># laya.common.proper_reward -- strictly proper scoring rule</span>
+log_score = (target &middot; log q)                      <span class="c"># floored at -9.21 nats</span>
+sph       = (target &middot; q) / &#8214;q&#8214;                 <span class="c"># spherical score</span>
+reward    = log_score + w_sph &middot; sph
+
+<span class="c"># the ranked probability term applies to score questions only</span>
+reward   -= w_rps &middot; RPS &middot; is_score</pre></div>
+        </div>
+
+        <p>Strict propriety is the whole point: a model trained against it is rewarded for reporting its true belief. A cross-entropy-only objective would train it to be decisive rather than calibrated. Note that the library default is <code>w_sph=0.5</code>, while the fine-tuning scripts pass <strong>0.75</strong> &mdash; do not assume you are matching their recipe if you call <code>proper_reward</code> yourself.</p>
+
+        <h3>The recipe</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Knob</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>What is trained</td><td>the <strong>full model</strong>: encoder plus head. No LoRA, no frozen encoder</td></tr>
+              <tr><td>Learning rates</td><td>encoder <code>2.5e-5</code>, head <code>1e-4</code> (differential)</td></tr>
+              <tr><td>Optimizer</td><td>AdamW, <code>weight_decay=0.01</code>, cosine schedule to <code>eta_min=1e-6</code></td></tr>
+              <tr><td>Epochs / batch</td><td>4 epochs, effective batch 64 (8 per GPU &times; 2 &times; accum 4)</td></tr>
+              <tr><td>Method</td><td>GRPO-style: 4 noisy logit samples per step, Gaussian noise &sigma; annealed <code>0.4 &rarr; 0.1</code>, normalized advantage, plus a cross-entropy term</td></tr>
+              <tr><td>Precision</td><td>fp16 + GradScaler, grad clip 1.0, gradient checkpointing on</td></tr>
+              <tr><td>Token budgets</td><td><code>max_len=1024</code>, <code>head_max_len=256</code></td></tr>
+              <tr><td>Then</td><td>per-type temperature fit (LBFGS) on a &le;400-item holdout taken <em>before</em> sharding</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Training data is a <code>.pt</code> pickle of tokenized items, not JSONL. The demo set is 1,200 cases, which expands to 6,000 typed decisions. Output is an ordinary laya checkpoint directory: <code>model.safetensors</code>, <code>encoder/</code>, <code>tokenizer/</code> and <code>rl_agent_config.json</code>, loadable with <code>laya.load("your-org/your-checkpoint")</code>.</p>
+
+        <div class="note">
+          <span class="note-head">The pip package ships no trainer</span>
+          <p><code>laya</code> gives you <code>proper_reward</code>, <code>td_lambda_targets</code> and the calibration tools. The training loop itself lives in the repository's notebooks &mdash; there is no <code>laya.fit()</code>. Budget for adapter work, not a one-line call.</p>
+        </div>
+
+        <h3>What it costs</h3>
+
+        <div class="ledger">
+          <div><span class="k">Kaggle 2&times;T4</span> <span class="v">&mdash; ~4&ndash;6 minutes for the 6,000-decision demo, free tier</span></div>
+          <div><span class="k">Larger set</span> <span class="v">&mdash; ~4&ndash;5 hours for 4 epochs over ~30k questions, same hardware</span></div>
+          <div><span class="k">RTX 4070 Ti SUPER</span> <span class="v">&mdash; ~2 hours for 4 epochs on the 421M model (a separate case study)</span></div>
+          <div><span class="k">Apple Silicon MPS</span> <span class="v">&mdash; a script exists, but the project publishes no timing. Assume substantially slower</span></div>
+        </div>
+
+        <h3>Honest limits</h3>
+
+        <ul class="plain">
+          <li><strong>Your teacher labels are the ceiling.</strong> RLCD imitates a distribution, so noisy labels teach the model your noise. The benchmark's own teacher-self-agreement ceiling is 0.735, and the published model reached 0.766 &mdash; it can edge past the teacher, but the teacher still sets the scale.</li>
+          <li><strong>The calibration holdout is small</strong> (&le;400 items, about 10%). Enough to fit three per-type scalars, not enough to validate against. Hold out your own eval set.</li>
+          <li><strong>No minimum dataset size is documented, and no release gates ship</strong> with the fine-tuning code. You define the acceptance threshold; the project only reports against the baselines above.</li>
+          <li><strong>Labels must fit the three primitives.</strong> If they are not a choice, a scale, or a yes/no, reshape them first.</li>
+          <li><strong>Fine-tuning can fail in specific ways.</strong> In the project's browser-agent case study, class imbalance taught the model a shortcut ("any prior history &rarr; DONE") from a spurious correlation; templated phrasing leaked into targets; and run-to-run variance exceeded the gap between two different backbones. Confidence-gated escalation to a much larger model made results <em>worse</em> than the small head.</li>
+        </ul>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_temperatures, records_from_labeled
+
+records = records_from_labeled(agent, labeled_pairs)
+temperature = fit_temperatures(records)
+
+agent.save_calibration(<span class="s">"calibration.json"</span>)   <span class="c"># temperatures + checkpoint identity, no weights</span>
+agent.load_calibration(<span class="s">"calibration.json"</span>)</pre></div>
+        </div>
+
+        <h3>The clamp that produces that warning</h3>
         <p>On first load the shipped english checkpoint emits this:</p>
         <div class="codewrap">
           <div class="codeblock"><pre>RuntimeWarning: laya: this checkpoint ships invalid temperatures or values
 outside [0.5, 5]; using choice:11+=0.1005 -> 0.5. Treat confidence from the
 affected entries as uncalibrated.</pre></div>
         </div>
-        <p>Only the <code>choice:11+</code> bucket is affected &mdash; <code>choice</code> questions with eleven or more options. A three-option question like <code>department</code> is untouched, and argmax answers are unaffected either way. If you have wide <code>choice</code> questions, gate on <code>answer_confidence</code> only after fitting temperatures, or check the reliability curve first.</p>
-
-        <div class="note">
-          <span class="note-head">Check truncation before blaming the model</span>
-          <p>Most "the model got it wrong" reports on long inputs are <code>usage["truncated"] == True</code>. Verify that before tuning anything.</p>
-        </div>
+        <p>Only the <code>choice:11+</code> bucket is affected &mdash; <code>choice</code> questions with eleven or more options. A three-option question like <code>department</code> is untouched, and argmax answers are unaffected either way.</p>
+        <p>The cause is a mismatch worth knowing about, because it will bite you the moment you fit your own temperatures: the fitters accept values in <code>[0.1, 10]</code>, but the agent <strong>clamps to <code>[0.5, 5.0]</code> on load</strong>. The shipped <code>0.1006</code> therefore runs as <code>0.5</code>. Edit <code>agent.temperature_by_options</code> &mdash; the copy <code>predict()</code> actually reads &mdash; rather than <code>agent.cfg</code>, or a value below 0.5 will silently run clamped.</p>
       </section>
 
       <!-- ================= 12 ================= -->
@@ -1029,7 +1145,7 @@ questions = {
 
       <footer>
         <span>Verified against laya 0.3.24</span>
-        <span>Every payload and number on this page came from a run against the local venv</span>
+        <span>Inference payloads come from runs against the local venv; benchmark and training figures are from the project's own published notebooks, docs and source</span>
       </footer>
 
     </main>
