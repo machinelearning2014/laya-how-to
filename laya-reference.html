@@ -1,0 +1,1104 @@
+<title>Laya Field Reference</title>
+<style>
+  /* ============================================================
+     Laya Field Reference
+     Layout: instrument-panel reference. Sticky index rail at
+     >=960px, single column below. Dense code on hairline surfaces;
+     the brass accent is reserved for the one thing under emphasis.
+     ============================================================ */
+
+  :root {
+    --bg:          #F4F6F8;
+    --surface:     #FFFFFF;
+    --surface-sunk:#EDF0F4;
+    --ink:         #121A23;
+    --ink-muted:   #5B6875;
+    --rule:        #DFE4EA;
+    --rule-strong: #C6CFD9;
+    --accent:      #8A5A12;
+    --accent-soft: #F5E9D4;
+    --accent-ink:  #6B4409;
+    --good:        #2F6B4F;
+
+    --display: "IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+    --body:    "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --step--1: 0.8125rem;
+    --step-0:  0.9375rem;
+    --step-1:  1.0625rem;
+    --step-2:  1.375rem;
+    --step-3:  1.875rem;
+    --step-4:  2.5rem;
+
+    --gutter: 20px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:          #0E1419;
+      --surface:     #161E26;
+      --surface-sunk:#1C252E;
+      --ink:         #E4E9EF;
+      --ink-muted:   #97A3B1;
+      --rule:        #26313C;
+      --rule-strong: #384654;
+      --accent:      #D9A441;
+      --accent-soft: #2B2418;
+      --accent-ink:  #EFC271;
+      --good:        #6FBF95;
+      color-scheme: dark;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:          #0E1419;
+    --surface:     #161E26;
+    --surface-sunk:#1C252E;
+    --ink:         #E4E9EF;
+    --ink-muted:   #97A3B1;
+    --rule:        #26313C;
+    --rule-strong: #384654;
+    --accent:      #D9A441;
+    --accent-soft: #2B2418;
+    --accent-ink:  #EFC271;
+    --good:        #6FBF95;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    padding-inline: var(--gutter);
+    padding-block: 0;
+  }
+
+  .shell { max-width: 1180px; margin-inline: auto; }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    padding-block: 44px 26px;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .masthead h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: var(--step-4);
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-size: var(--step-1);
+    color: var(--ink-muted);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    font-family: var(--mono);
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    padding-top: 4px;
+  }
+  .meta-row b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- two-column body ---------- */
+
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  @media (min-width: 960px) {
+    .columns { grid-template-columns: 216px 1fr; gap: 56px; align-items: start; }
+  }
+
+  nav.rail {
+    padding-block: 28px;
+    border-bottom: 1px solid var(--rule);
+    min-width: 0;
+  }
+  @media (min-width: 960px) {
+    nav.rail {
+      position: sticky;
+      top: calc(env(safe-area-inset-top, 0px) + 20px);
+      border-bottom: none;
+      padding-block: 34px 40px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+    }
+  }
+  .rail-label {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 10px;
+  }
+  nav.rail ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    counter-reset: rail;
+  }
+  @media (min-width: 960px) {
+    nav.rail ol { flex-direction: column; flex-wrap: nowrap; gap: 0; }
+  }
+  nav.rail a {
+    display: block;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    text-decoration: none;
+    padding: 5px 0;
+    border-bottom: 1px solid transparent;
+  }
+  @media (max-width: 959px) {
+    nav.rail a { border: 1px solid var(--rule); border-radius: 3px; padding: 4px 9px; background: var(--surface); }
+  }
+  nav.rail a:hover, nav.rail a:focus-visible { color: var(--accent); }
+  nav.rail a.on { color: var(--ink); border-bottom-color: var(--accent); }
+  @media (max-width: 959px) { nav.rail a.on { border-color: var(--accent); color: var(--accent-ink); } }
+  nav.rail a .n {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-right: 7px;
+  }
+
+  main { padding-block: 34px 96px; min-width: 0; }
+
+  section { padding-block: 34px; border-top: 1px solid var(--rule); }
+  section:first-child { border-top: none; padding-top: 8px; }
+  section > * { max-width: 74ch; }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: var(--step-3);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: var(--step-2);
+    letter-spacing: -0.005em;
+    margin: 34px 0 8px;
+    text-wrap: balance;
+  }
+  h4 {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin: 26px 0 8px;
+  }
+  p { margin: 0 0 14px; }
+  .lede { font-size: var(--step-1); color: var(--ink-muted); }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.1em 0.34em;
+  }
+  strong { font-weight: 600; }
+
+  ul.plain { margin: 0 0 14px; padding-left: 1.1em; }
+  ul.plain li { margin-bottom: 6px; }
+
+  /* ---------- code blocks ---------- */
+
+  .codewrap { position: relative; margin: 0 0 18px; max-width: 100%; }
+  .codeblock {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule-strong);
+    border-radius: 4px;
+    overflow-x: auto;
+    min-width: 0;
+  }
+  .codeblock.is-accent { border-left-color: var(--accent); }
+  .codeblock pre {
+    margin: 0;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    tab-size: 2;
+  }
+  .codeblock pre .c { color: var(--ink-muted); }
+  .codeblock pre .k { color: var(--accent-ink); }
+  .codeblock pre .s { color: var(--good); }
+  .codewrap .filename {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--ink-muted);
+    display: block;
+    margin-bottom: 5px;
+  }
+  .copy {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-muted);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 3px 8px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .codewrap:hover .copy, .copy:focus-visible { opacity: 1; }
+  .copy:hover { color: var(--accent); border-color: var(--accent); }
+  @media (hover: none) { .copy { opacity: 1; } }
+
+  /* ---------- tables ---------- */
+
+  .tablewrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    background: var(--surface-sunk);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td code { background: none; border: none; padding: 0; color: var(--accent-ink); }
+  .tag {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 1px 6px;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+  .tag.accent { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+  /* ---------- callouts ---------- */
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 13px 16px;
+    border-radius: 0 4px 4px 0;
+    margin: 0 0 18px;
+    font-size: var(--step--1);
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note .note-head {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ---------- figure ---------- */
+
+  figure { margin: 0 0 22px; max-width: 100%; }
+  .figscroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); padding: 6px; }
+  figure svg { display: block; width: 100%; min-width: 580px; max-width: 780px; height: auto; margin-inline: auto; }
+  figcaption { font-size: var(--step--1); color: var(--ink-muted); margin-top: 9px; max-width: 68ch; }
+  figure text { font-family: var(--mono); fill: currentColor; }
+  figure .lbl { font-family: var(--body); }
+
+  /* ---------- misc ---------- */
+
+  .ledger { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; margin: 0 0 18px; }
+  .ledger div { background: var(--surface); padding: 11px 14px; font-size: var(--step--1); }
+  .ledger .k { font-family: var(--mono); color: var(--accent-ink); }
+  .ledger .v { color: var(--ink-muted); }
+
+  .gotchas { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 12px; }
+  .gotchas li { padding-left: 16px; border-left: 2px solid var(--rule-strong); font-size: var(--step--1); }
+  .gotchas li b { font-family: var(--mono); font-weight: 500; font-size: 0.8125rem; color: var(--accent-ink); display: block; margin-bottom: 1px; }
+
+  footer {
+    border-top: 2px solid var(--ink);
+    padding-block: 20px 40px;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+  }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <div class="eyebrow">laya 0.3.24 &middot; field reference</div>
+    <h1>Typed decisions in one forward pass</h1>
+    <p class="standfirst">Laya answers a set of typed questions about a piece of text without generating any text at all. No decoding, nothing to parse, nothing to hallucinate &mdash; and every answer arrives with a calibrated probability you can threshold on.</p>
+    <div class="meta-row">
+      <span><b>Checkpoints</b> english &middot; multilingual &middot; typed-decisions</span>
+      <span><b>Types</b> choice &middot; score &middot; noul</span>
+      <span><b>Verified against</b> .venv/lib/python3.12/site-packages/laya</span>
+    </div>
+  </header>
+
+  <div class="columns">
+
+    <nav class="rail" aria-label="Sections">
+      <div class="rail-label">Contents</div>
+      <ol>
+        <li><a href="#model"><span class="n">01</span>The mental model</a></li>
+        <li><a href="#setup"><span class="n">02</span>Setup and checkpoints</a></li>
+        <li><a href="#questions"><span class="n">03</span>Writing questions</a></li>
+        <li><a href="#results"><span class="n">04</span>Reading the result</a></li>
+        <li><a href="#confidence"><span class="n">05</span>Confidence and abstention</a></li>
+        <li><a href="#scale"><span class="n">06</span>Batch, long docs, many labels</a></li>
+        <li><a href="#typed"><span class="n">07</span>Typed output</a></li>
+        <li><a href="#cli"><span class="n">08</span>Presets and the CLI</a></li>
+        <li><a href="#serve"><span class="n">09</span>Serving and integrations</a></li>
+        <li><a href="#hooks"><span class="n">10</span>Hooks</a></li>
+        <li><a href="#accuracy"><span class="n">11</span>Accuracy and calibration</a></li>
+        <li><a href="#gotchas"><span class="n">12</span>Gotchas</a></li>
+        <li><a href="#worked"><span class="n">13</span>The worked example</a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- ================= 01 ================= -->
+      <section id="model">
+        <h2>The mental model</h2>
+        <p class="lede">You give Laya a <strong>state</strong> (a string, a dict, or a list of conversation turns) and a dict of <strong>typed questions</strong>. It routes to a checkpoint and answers every question at once.</p>
+
+        <p>The reason it is fast is structural, not an optimization: the state and every question's options are packed into <em>one</em> sequence, with each option occupying its own masked slot. A single forward pass scores all the slots, so eight questions cost about the same as one. That is why <code>predict</code> has no batch dimension to exploit for a single state, and why adding questions is nearly free.</p>
+
+        <figure>
+          <div class="figscroll">
+            <svg viewBox="0 0 680 566" role="img" aria-label="Diagram: a state and several typed questions are packed into one sequence of masked option slots, scored by one forward pass through the routed checkpoint, producing one probability distribution per question.">
+              <defs>
+                <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+                </marker>
+              </defs>
+
+              <!-- inputs -->
+              <rect x="32" y="22" width="286" height="66" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+              <text x="48" y="46" font-size="13" class="lbl" font-weight="600">state</text>
+              <text x="48" y="66" font-size="11" opacity="0.65">the support message &middot; 21 tokens</text>
+
+              <rect x="362" y="22" width="286" height="66" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+              <text x="378" y="46" font-size="13" class="lbl" font-weight="600">questions</text>
+              <text x="378" y="66" font-size="11" opacity="0.65">8 typed questions</text>
+
+              <line x1="175" y1="88" x2="175" y2="136" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)" opacity="0.7"/>
+              <line x1="505" y1="88" x2="505" y2="136" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)" opacity="0.7"/>
+
+              <!-- packed sequence -->
+              <rect x="32" y="144" width="616" height="114" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/>
+              <text x="48" y="167" font-size="12" font-weight="600" class="lbl">one sequence</text>
+              <text x="152" y="167" font-size="11" opacity="0.65">&#8212; each option gets its own masked slot</text>
+
+              <rect x="48" y="180" width="128" height="56" rx="3" fill="currentColor" opacity="0.07"/>
+              <text x="60" y="204" font-size="11">state</text>
+              <text x="60" y="222" font-size="10" opacity="0.6">21 tokens</text>
+
+              <rect x="186" y="180" width="138" height="56" rx="3" fill="currentColor" opacity="0.07"/>
+              <text x="198" y="202" font-size="11">department</text>
+              <rect x="198" y="210" width="74" height="8" rx="2" fill="currentColor" opacity="0.28"/>
+              <text x="280" y="218" font-size="10" opacity="0.6">3</text>
+
+              <rect x="334" y="180" width="138" height="56" rx="3" fill="currentColor" opacity="0.07"/>
+              <text x="346" y="202" font-size="11">urgency</text>
+              <rect x="346" y="210" width="74" height="8" rx="2" fill="currentColor" opacity="0.28"/>
+              <text x="428" y="218" font-size="10" opacity="0.6">3</text>
+
+              <rect x="482" y="180" width="150" height="56" rx="3" fill="currentColor" opacity="0.07"/>
+              <text x="494" y="202" font-size="11">churn_risk</text>
+              <rect x="494" y="210" width="44" height="8" rx="2" fill="currentColor" opacity="0.28"/>
+              <text x="546" y="218" font-size="10" opacity="0.6">2</text>
+
+              <line x1="340" y1="258" x2="340" y2="298" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+
+              <!-- forward pass -->
+              <rect x="112" y="306" width="456" height="86" rx="4" fill="none" stroke="currentColor" stroke-width="2.4"/>
+              <text x="132" y="334" font-size="14" class="lbl" font-weight="600">one forward pass</text>
+              <text x="132" y="356" font-size="11" opacity="0.7">routed checkpoint &#8212; english</text>
+              <text x="132" y="374" font-size="10" opacity="0.5">multilingual / typed-decisions, chosen by script and language</text>
+
+              <line x1="340" y1="392" x2="340" y2="432" stroke="currentColor" stroke-width="1.4"/>
+              <line x1="130" y1="432" x2="550" y2="432" stroke="currentColor" stroke-width="1.4"/>
+              <line x1="130" y1="432" x2="130" y2="456" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+              <line x1="340" y1="432" x2="340" y2="456" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+              <line x1="550" y1="432" x2="550" y2="456" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+
+              <!-- answer chips -->
+              <rect x="32" y="464" width="196" height="94" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+              <text x="46" y="484" font-size="11">department</text>
+              <text x="212" y="484" font-size="10" opacity="0.55" text-anchor="end">choice</text>
+              <rect x="46" y="494" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="46.5" y="494.5" width="146" height="8" rx="2" fill="currentColor" opacity="0.75"/>
+              <rect x="46" y="508" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="46.5" y="508.5" width="2" height="8" rx="1" fill="currentColor" opacity="0.35"/>
+              <rect x="46" y="522" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="46.5" y="522.5" width="2" height="8" rx="1" fill="currentColor" opacity="0.35"/>
+              <text x="46" y="548" font-size="11" opacity="0.8">billing &#183; 0.99</text>
+
+              <rect x="242" y="464" width="196" height="94" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+              <text x="256" y="484" font-size="11">urgency</text>
+              <text x="422" y="484" font-size="10" opacity="0.55" text-anchor="end">score</text>
+              <rect x="256" y="494" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="256.5" y="494.5" width="6" height="8" rx="2" fill="currentColor" opacity="0.3"/>
+              <rect x="256" y="508" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="256.5" y="508.5" width="23" height="8" rx="2" fill="currentColor" opacity="0.3"/>
+              <rect x="256" y="522" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="256.5" y="522.5" width="122" height="8" rx="2" fill="currentColor" opacity="0.75"/>
+              <text x="256" y="548" font-size="11" opacity="0.8">1.79 &#183; expected level</text>
+
+              <rect x="452" y="464" width="196" height="94" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+              <text x="466" y="484" font-size="11">churn_risk</text>
+              <text x="632" y="484" font-size="10" opacity="0.55" text-anchor="end">noul</text>
+              <rect x="466" y="494" width="148" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+              <rect x="466.5" y="494.5" width="125" height="8" rx="2" fill="currentColor" opacity="0.75"/>
+              <text x="466" y="548" font-size="11" opacity="0.8">P(true) = 0.84</text>
+            </svg>
+          </div>
+          <figcaption>Every question's options ride along in one sequence as masked slots, so a single forward pass returns one distribution per question. Bar lengths are the real output for the message below; the filled bar is the answer being reported.</figcaption>
+        </figure>
+
+        <div class="note">
+          <span class="note-head">Why this matters for your latency</span>
+          <p>Adding questions to a request is close to free. Splitting one request into eight separate <code>predict</code> calls is not &mdash; that is eight routes and eight forward passes.</p>
+        </div>
+      </section>
+
+      <!-- ================= 02 ================= -->
+      <section id="setup">
+        <h2>Setup and checkpoints</h2>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>pip install laya                      <span class="c"># Python 3.10+</span>
+pip install "laya[structured]"        <span class="c"># adds pydantic, for schema= typed output</span>
+pip install "laya[serve]"             <span class="c"># adds the HTTP server</span></pre></div>
+        </div>
+
+        <div class="codewrap">
+          <div class="codeblock is-accent"><pre><span class="k">from</span> laya <span class="k">import</span> Router
+
+router = Router()                 <span class="c"># lazy: nothing downloads until the first predict</span>
+router = Router(preload=<span class="k">True</span>)        <span class="c"># load all three up front</span>
+router = Router(max_loaded=<span class="n">1</span>)         <span class="c"># keep only one checkpoint resident</span>
+router = Router(device=<span class="s">"cpu"</span>)         <span class="c"># pin the device (default: cuda, else mps, else xpu, else cpu)</span>
+router = Router(agent_kwargs={<span class="s">"compile"</span>: <span class="k">True</span>})   <span class="c"># Agent-level options reach the Router here</span></pre></div>
+        </div>
+
+        <p>Three checkpoints, and the router picks between them per request by detected script and language. Routing itself loads nothing, so it is safe to call on every request.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr><th>Checkpoint</th><th>Encoder</th><th class="num">Params</th><th>Context</th><th>Aliases</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>english</code></td><td>ModernBERT-large</td><td class="num">421M</td><td>512</td><td><span class="tag">en</span> <span class="tag">laya</span> <span class="tag">default</span></td></tr>
+              <tr><td><code>multilingual</code></td><td>mmBERT-base</td><td class="num">322M</td><td>1024, up to 8192</td><td><span class="tag">multi</span> <span class="tag">ml</span></td></tr>
+              <tr><td><code>typed-decisions</code></td><td>ModernBERT-large</td><td class="num">421M</td><td>1024</td><td><span class="tag">typed</span> <span class="tag">decisions</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><code>route()</code> returns the decision without touching a checkpoint &mdash; useful as a cheap pre-flight, and as a debugging tool when text is landing on the wrong checkpoint.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>d = router.route(<span class="s">"Mein Konto wurde zweimal belastet"</span>)
+<span class="c"># {'model': 'multilingual',</span>
+<span class="c">#  'repo': 'convaiinnovations/laya/multilingual',</span>
+<span class="c">#  'reason': "Latin script but language looks like 'de', not English",</span>
+<span class="c">#  'detection': {'script': 'latin', 'language': 'de', 'is_english': False, ...},</span>
+<span class="c">#  'workflow': None}</span></pre></div>
+        </div>
+
+        <p>Route precedence runs: explicit <code>model</code>, then <code>task</code>, then detected workflow, then explicit <code>lang</code>, then <code>lang_guess</code>, then detection, then <code>default</code>.</p>
+
+        <div class="note">
+          <span class="note-head">Constructor is plural</span>
+          <p><code>Router(models=...)</code> overrides the checkpoint table. The singular <code>model=</code> is a per-call argument on <code>predict</code>, not a constructor kwarg.</p>
+        </div>
+      </section>
+
+      <!-- ================= 03 ================= -->
+      <section id="questions">
+        <h2>Writing questions</h2>
+        <p>Three types. Each question is a dict with <code>type</code>, <code>instructions</code>, and <code>criteria</code>.</p>
+
+        <h3>choice</h3>
+        <p>Pick one label. Criteria may be a dict of label to description, or a plain list of labels.</p>
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="s">"department"</span>: {<span class="s">"type"</span>: <span class="s">"choice"</span>,
+               <span class="s">"instructions"</span>: <span class="s">"Which department should handle `message`?"</span>,
+               <span class="s">"criteria"</span>: {<span class="s">"billing"</span>: <span class="s">"invoices, payments, refunds"</span>,
+                            <span class="s">"technical"</span>: <span class="s">"bugs, outages, system errors"</span>,
+                            <span class="s">"other"</span>: <span class="s">"everything else"</span>}},
+
+<span class="c"># short form: labels only. None or "" means "no description".</span>
+<span class="s">"topic"</span>: {<span class="s">"type"</span>: <span class="s">"choice"</span>, <span class="s">"criteria"</span>: [<span class="s">"billing"</span>, <span class="s">"technical"</span>, <span class="s">"other"</span>]}</pre></div>
+        </div>
+
+        <h3>score</h3>
+        <p>An ordered scale of any length. You get back the <strong>expected level</strong> as a float, plus the full distribution.</p>
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="s">"urgency"</span>: {<span class="s">"type"</span>: <span class="s">"score"</span>,
+            <span class="s">"instructions"</span>: <span class="s">"How urgent is `message`?"</span>,
+            <span class="s">"criteria"</span>: [<span class="s">"not urgent"</span>, <span class="s">"soon"</span>, <span class="s">"blocking"</span>]}   <span class="c"># -> 1.79</span></pre></div>
+        </div>
+
+        <h3>noul</h3>
+        <p>A yes/no question under uncertainty. Always returns <strong>P(true)</strong> in 0..1, whatever you call the two sides.</p>
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="s">"churn_risk"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>,
+               <span class="s">"instructions"</span>: <span class="s">"Does `message` threaten to cancel or leave?"</span>}   <span class="c"># -> 0.84</span>
+
+<span class="c"># criteria is optional. If given, it must be keyed exactly true/false.</span>
+<span class="s">"refund_requested"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>,
+                     <span class="s">"instructions"</span>: <span class="s">"Does `message` ask for money back?"</span>,
+                     <span class="s">"criteria"</span>: {<span class="s">"true"</span>: <span class="s">"asks for a refund or a charge reversed"</span>,
+                                  <span class="s">"false"</span>: <span class="s">"no refund requested"</span>}}
+
+<span class="c"># labels only change the text shown to the model. The number is still P(true).</span>
+<span class="s">"labels"</span>: {<span class="s">"true"</span>: <span class="s">"A"</span>, <span class="s">"false"</span>: <span class="s">"B"</span>}</pre></div>
+        </div>
+
+        <h3>The backtick convention</h3>
+        <p>Every preset in the library names the state field it reads inside backticks: <code>"What does the customer want in `message`?"</code>. <code>presets.state_field()</code> scrapes that name back out, and the CLI and MCP server use it to know where to put your text. Plain <code>predict</code> with a string state does not need it, but adopting it keeps a question set portable to the CLI and to <code>decide</code>.</p>
+
+        <h3>Limits worth knowing</h3>
+        <ul class="plain">
+          <li>Each option's rendered text is truncated to <strong>48 tokens</strong>. More labels means fewer tokens each.</li>
+          <li>The option head shares <code>head_max_len</code> (default 192). Raise it for many-label questions.</li>
+          <li>Core imposes no cap on question or option counts. The HTTP server does: 64 questions, 100 choice options, 32 score levels, 512 total options.</li>
+          <li>If the masked slots cannot fit inside <code>max_len</code>, you get a <code>ValueError</code> naming the question &mdash; and raising <code>head_max_len</code> can make it worse by leaving less room for state.</li>
+        </ul>
+      </section>
+
+      <!-- ================= 04 ================= -->
+      <section id="results">
+        <h2>Reading the result</h2>
+        <p>Four top-level keys: <code>model</code>, <code>answers</code>, <code>usage</code>, <code>routing</code>. The <code>routing</code> key is added by <code>Router</code>; a bare <code>Agent</code> returns the other three.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="c"># choice</span>
+{<span class="s">"type"</span>: <span class="s">"choice"</span>, <span class="s">"choice"</span>: <span class="s">"billing"</span>,
+ <span class="s">"probabilities"</span>: {<span class="s">"billing"</span>: <span class="n">0.9875</span>, <span class="s">"technical"</span>: <span class="n">0.0071</span>, <span class="s">"other"</span>: <span class="n">0.0054</span>},
+ <span class="s">"confidence"</span>: <span class="n">0.93</span>, <span class="s">"answer_confidence"</span>: <span class="n">0.9875</span>}
+
+<span class="c"># score</span>
+{<span class="s">"type"</span>: <span class="s">"score"</span>, <span class="s">"score"</span>: <span class="n">1.7901</span>,
+ <span class="s">"legend"</span>: {<span class="s">"0"</span>: <span class="s">"not urgent"</span>, <span class="s">"1"</span>: <span class="s">"soon"</span>, <span class="s">"2"</span>: <span class="s">"blocking"</span>},
+ <span class="s">"probabilities"</span>: {<span class="s">"0"</span>: <span class="n">0.0337</span>, <span class="s">"1"</span>: <span class="n">0.1424</span>, <span class="s">"2"</span>: <span class="n">0.8238</span>},
+ <span class="s">"confidence"</span>: <span class="n">0.34</span>, <span class="s">"answer_confidence"</span>: <span class="n">0.8238</span>}
+
+<span class="c"># noul</span>
+{<span class="s">"type"</span>: <span class="s">"noul"</span>, <span class="s">"noul"</span>: <span class="n">0.8429</span>,
+ <span class="s">"confidence"</span>: <span class="n">0.8429</span>, <span class="s">"answer_confidence"</span>: <span class="n">0.8429</span>}</pre></div>
+        </div>
+
+        <p>Every answer also carries <code>"action": {"act_probability": ...}</code> from a separate head. It is always 1.0 in these runs; the examples above omit it for length.</p>
+
+        <h3>Did the model actually see my whole state?</h3>
+        <div class="codewrap">
+          <div class="codeblock"><pre>result[<span class="s">"usage"</span>]
+<span class="c"># {"input_tokens": 401, "output_tokens": 0, "state_tokens": 21,</span>
+<span class="c">#  "state_tokens_dropped": 0, "truncated": False, "truncated_questions": []}</span></pre></div>
+        </div>
+        <p>Read <code>usage["truncated"]</code> instead of estimating from string length. Long states are silently trimmed to fit <code>max_len</code> (512 on english, 1024 on multilingual). <code>usage</code> also gains an <code>options</code> entry when the head budget collapsed two options onto the same tokens &mdash; a signal that your answer is limited by the budget rather than by the model.</p>
+
+        <p><code>output_tokens</code> is always 0. Laya never generates text.</p>
+      </section>
+
+      <!-- ================= 05 ================= -->
+      <section id="confidence">
+        <h2>Confidence and abstention</h2>
+
+        <h3>Two different confidences</h3>
+        <p>Each answer carries both, and they measure different things.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Type</th><th><code>confidence</code></th><th><code>answer_confidence</code></th></tr></thead>
+            <tbody>
+              <tr><td><span class="tag">choice</span></td><td>normalized Shannon entropy</td><td><strong>max(p)</strong>, the top option's probability</td></tr>
+              <tr><td><span class="tag">score</span></td><td>normalized Shannon entropy</td><td><strong>max(p)</strong>, the top level's probability</td></tr>
+              <tr><td><span class="tag">noul</span></td><td>max(p)</td><td><strong>max(p)</strong> &mdash; identical to the above here</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><strong>Gate on <code>answer_confidence</code>.</strong> It is the calibrated quantity &mdash; the one temperature scaling fits and ECE measures &mdash; and it means the same thing across all three types. The entropy <code>confidence</code> is useful for ranking, but it drifts with how many options a question has, so a threshold on it does not transfer between questions.</p>
+
+        <h3>Why that distinction bites</h3>
+        <p>Look at the two <code>noul</code> answers from the worked example:</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Question</th><th>Type</th><th>Answer</th><th class="num">answer_confidence</th><th>Reads as</th></tr></thead>
+            <tbody>
+              <tr><td><code>department</code></td><td><span class="tag">choice</span></td><td>billing</td><td class="num">0.9875</td><td>confident</td></tr>
+              <tr><td><code>refund_requested</code></td><td><span class="tag">noul</span></td><td>0.906</td><td class="num">0.906</td><td>confident yes</td></tr>
+              <tr><td><code>churn_risk</code></td><td><span class="tag">noul</span></td><td>0.8429</td><td class="num">0.8429</td><td>confident yes</td></tr>
+              <tr><td><code>urgency</code></td><td><span class="tag">score</span></td><td>1.7901</td><td class="num">0.8238</td><td>leans "blocking"</td></tr>
+              <tr><td><code>security_related</code></td><td><span class="tag">noul</span></td><td>0.373</td><td class="num">0.627</td><td>confident no</td></tr>
+              <tr><td><code>deadline_mentioned</code></td><td><span class="tag">noul</span></td><td>0.2352</td><td class="num">0.7648</td><td><strong>confident no</strong></td></tr>
+              <tr><td><code>sentiment</code></td><td><span class="tag">score</span></td><td>1.6361</td><td class="num">0.4619</td><td><strong>genuinely unsure</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><code>deadline_mentioned</code> returns <code>noul = 0.24</code>, which looks low, but that is a <em>confident no</em>: <code>answer_confidence</code> is 0.76. Gating on the raw <code>noul</code> value would abstain on the model's most decisive answer. <code>sentiment</code> at 0.46 is the one actually worth escalating &mdash; it sits between "annoyed" and "angry" and the model is telling you so.</p>
+
+        <h3>Opt-in abstention</h3>
+        <div class="codewrap">
+          <div class="codeblock is-accent"><pre>result = router.predict(state, questions, min_confidence=<span class="n">0.9</span>)</pre></div>
+        </div>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>department {<span class="s">'choice'</span>: <span class="s">'billing'</span>, <span class="s">'answer_confidence'</span>: <span class="n">0.9875</span>, <span class="s">'abstention'</span>: <span class="s">'passed'</span>}
+sentiment  {<span class="s">'score'</span>: <span class="n">1.6361</span>, <span class="s">'answer_confidence'</span>: <span class="n">0.4619</span>, <span class="s">'abstention'</span>: <span class="s">'abstained'</span>, <span class="s">'low_confidence'</span>: <span class="k">True</span>}</pre></div>
+        </div>
+
+        <p>With a threshold set, every answer gains <code>abstention</code> (one of <code>passed</code>, <code>abstained</code>, <code>unevaluated</code>) and <code>abstention_threshold</code>. <code>low_confidence: True</code> appears only on the answers that fell below.</p>
+
+        <div class="note">
+          <span class="note-head">The presence of the field is the signal</span>
+          <p>With <code>min_confidence</code> unset, <strong>nothing</strong> is written &mdash; no <code>abstention</code>, no <code>low_confidence</code>. So the existence of the key tells you a gate ran; its value tells you what happened. <code>unevaluated</code> means a gate ran but the answer carried no usable confidence, which is worth alerting on separately from <code>abstained</code>.</p>
+        </div>
+
+        <p>One threshold does not transfer between questions with different option counts. Pass a map keyed by bucket instead, and fit it rather than guessing:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_abstention_thresholds
+
+thresholds = fit_abstention_thresholds(records, temperature, temperature_by_options,
+                                       target_error=<span class="n">0.10</span>)
+<span class="c"># {'choice:2': 0.91, 'choice:3-5': 0.88, 'score:6-10': 0.79, ...}</span>
+router.predict(state, questions, min_confidence=thresholds)</pre></div>
+        </div>
+      </section>
+
+      <!-- ================= 06 ================= -->
+      <section id="scale">
+        <h2>Batch, long docs, many labels</h2>
+
+        <h3>Many states: predict_batch</h3>
+        <p>One route, shared forward passes, answers back in input order. Each request dict may carry its own <code>model</code>, <code>lang</code>, <code>max_len</code>, and <code>head_max_len</code>.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>out = router.predict_batch([
+    {<span class="s">"state"</span>: <span class="s">"I was charged twice."</span>, <span class="s">"questions"</span>: q},
+    {<span class="s">"state"</span>: <span class="s">"The app crashes."</span>,     <span class="s">"questions"</span>: q, <span class="s">"max_len"</span>: <span class="n">1024</span>},
+], batch_size=<span class="n">8</span>, sort_by_length=<span class="k">True</span>)
+
+<span class="c"># [('english', 'billing',   0.9451),</span>
+<span class="c">#  ('english', 'technical', 0.7341)]</span></pre></div>
+        </div>
+
+        <p><code>sort_by_length</code> groups similar-sized states into each pass, since a pass pads everything to its longest member. It needs a <code>batch_size</code> smaller than the number of requests, or there is no group to reorder.</p>
+
+        <h3>Long documents</h3>
+        <p>Name the multilingual checkpoint and raise the window. Short inputs give identical answers at <code>max_len=8192</code>, and speed follows real length rather than the limit.</p>
+        <div class="codewrap">
+          <div class="codeblock"><pre>router.predict(long_doc, questions, model=<span class="s">"multilingual"</span>, max_len=<span class="n">8192</span>)
+
+<span class="c"># or window the document instead of truncating it</span>
+router.predict_long(doc, questions)
+<span class="c"># noul   -> max P(true) across windows</span>
+<span class="c"># choice -> the single most-confident window's answer</span>
+<span class="c"># the answer carries answer["window"] = {index, token_start, token_end, count}</span></pre></div>
+        </div>
+        <p>Two traps. Name <code>model="multilingual"</code> explicitly for long mostly-English text, or it routes to the 512-token English checkpoint. And <code>predict_long</code> deliberately does not accept <code>max_len</code> or <code>head_max_len</code> &mdash; it sizes its own windows from the room each question leaves.</p>
+
+        <h3>Questions with many labels</h3>
+        <p>A 58-label <code>choice</code> question gives each label a few tokens and gets the accuracy you would expect. Shortlist first, then predict over the survivors:</p>
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> predict_shortlist, embed_fn_from_agent
+
+result = predict_shortlist(agent, state, questions,
+                           embed_fn=embed_fn_from_agent(agent), k=<span class="n">20</span>)
+<span class="c"># result["shortlist"] records what was reranked, per question</span></pre></div>
+        </div>
+      </section>
+
+      <!-- ================= 07 ================= -->
+      <section id="typed">
+        <h2>Typed output</h2>
+        <p><code>decide()</code> maps a schema onto questions and hands back schema-shaped values, so nothing downstream parses a label string. A plain JSON-schema dict needs no extra dependency; a pydantic model needs <code>laya[structured]</code>.</p>
+
+        <div class="codewrap">
+          <div class="codeblock is-accent"><pre><span class="k">import</span> laya
+
+schema = {<span class="s">"type"</span>: <span class="s">"object"</span>, <span class="s">"properties"</span>: {
+    <span class="s">"department"</span>:  {<span class="s">"type"</span>: <span class="s">"string"</span>,  <span class="s">"enum"</span>: [<span class="s">"billing"</span>, <span class="s">"technical"</span>, <span class="s">"other"</span>]},
+    <span class="s">"urgency"</span>:     {<span class="s">"type"</span>: <span class="s">"integer"</span>, <span class="s">"minimum"</span>: <span class="n">0</span>, <span class="s">"maximum"</span>: <span class="n">2</span>},
+    <span class="s">"needs_human"</span>: {<span class="s">"type"</span>: <span class="s">"boolean"</span>}}}
+
+router.decide(<span class="s">"I was charged twice, refund me or I cancel."</span>, schema=schema)
+<span class="c"># {'department': 'billing', 'urgency': 2, 'needs_human': False}</span></pre></div>
+        </div>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Schema construct</th><th>Becomes</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td><code>enum</code>, <code>const</code></td><td><span class="tag">choice</span></td><td>original values are returned, not the labels</td></tr>
+              <tr><td><code>boolean</code></td><td><span class="tag">noul</span></td><td>an all-bool enum also routes here</td></tr>
+              <tr><td><code>integer</code> / <code>number</code></td><td><span class="tag">score</span></td><td>needs <strong>integer</strong> <code>minimum</code> and <code>maximum</code>, span &le; 10</td></tr>
+              <tr><td><code>Optional[X]</code></td><td>unwrap</td><td>exactly one non-null branch</td></tr>
+              <tr><td><code>string</code>, <code>array</code>, nested object</td><td>&mdash;</td><td>rejected with an error naming the path</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>With <code>min_confidence=</code>, a field below threshold comes back as <code>None</code> in the values rather than a guess. Ask for <code>return_details=True</code> and you get a <code>DecisionResult</code> carrying the raw distributions, per-field confidences, <code>usage</code> and <code>routing</code> alongside the projected values &mdash; so an abstention is still inspectable.</p>
+
+        <p>Limits: 32 properties, 32 options, 10 score levels.</p>
+      </section>
+
+      <!-- ================= 08 ================= -->
+      <section id="cli">
+        <h2>Presets and the CLI</h2>
+
+        <p>Five ready-made question sets, importable or answerable by name from the command line.</p>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Preset</th><th>Reads</th><th>Answers</th></tr></thead>
+            <tbody>
+              <tr><td><code>triage_questions()</code></td><td><code>message</code></td><td>intent, is_urgent, frustration, refund_requested, churn_risk</td></tr>
+              <tr><td><code>email_questions()</code></td><td><code>body</code></td><td>category, is_spam, is_phishing, urgency, needs_reply</td></tr>
+              <tr><td><code>guard_questions()</code></td><td><code>prompt</code></td><td>jailbreak, prompt_injection, sensitive_data, harm_severity, topic</td></tr>
+              <tr><td><code>moderation_questions()</code></td><td><code>post</code></td><td>toxic, harassment, threat, spam, severity</td></tr>
+              <tr><td><code>router_questions()</code></td><td><code>request</code></td><td>difficulty, domain, needs_tools, is_sensitive</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p><code>email_questions(categories=...)</code> takes a replacement label-to-description dict. <code>laya.email.clean_email_body()</code> strips quoted reply history, signatures and disclaimers (English, Portuguese, Spanish, French) before you predict.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>laya <span class="s">"I was charged twice"</span>                       <span class="c"># routing only, no download</span>
+laya <span class="s">"I was charged twice"</span> --preset triage --predict  <span class="c"># --predict loads the checkpoint</span>
+laya <span class="s">"Mein Konto wurde zweimal belastet"</span> --lang de
+laya <span class="s">"My payment failed"</span> --lang-guess en               <span class="c"># soft hint, still falls through to detection</span>
+laya <span class="s">"Refactor this service"</span> --model ml --predict
+laya --batch tickets.txt --predict --json              <span class="c"># JSONL; - means stdin</span>
+laya --batch tickets.txt --predict --batch-size <span class="n">8</span> --sort-by-length
+laya <span class="s">"Where is my card"</span> --questions intents.json        <span class="c"># implies --predict</span>
+laya <span class="s">"Refund my card"</span> --predict --min-confidence <span class="n">0.9</span>
+laya                                                   <span class="c"># interactive REPL</span></pre></div>
+        </div>
+
+        <p><code>--questions</code> takes the same dict the SDK takes, as JSON: either the mapping, or <code>{"state_key": "body", "questions": {...}}</code> when the instructions name a field other than the default <code>request</code>. That is the payoff for the backtick convention above.</p>
+
+        <p><code>--lang</code> is decisive &mdash; it picks the checkpoint and skips detection. <code>--lang-guess</code> is the soft sibling: it nudges routing but still falls through to the detector. <code>--min-confidence</code> requires one of <code>--predict</code>, <code>--preset</code> or <code>--questions</code>, and errors clearly if you forget.</p>
+      </section>
+
+      <!-- ================= 09 ================= -->
+      <section id="serve">
+        <h2>Serving and integrations</h2>
+
+        <h3>HTTP</h3>
+        <div class="codewrap">
+          <div class="codeblock"><pre>pip install <span class="s">"laya[serve]"</span>
+laya-serve                       <span class="c"># POST /v1/systemone, /v1/systemone/batch, GET /health</span></pre></div>
+        </div>
+        <p>Deployment knobs are environment variables: <code>LAYA_API_KEY</code> (adds bearer auth), <code>LAYA_MAX_LOADED</code>, <code>LAYA_DEFAULT_MODEL</code>, <code>LAYA_MAX_CONCURRENT</code> (excess gets a 503 with <code>Retry-After</code>), <code>LAYA_MAX_TOKEN_BUDGET</code> (caps per-request token budgets), <code>LAYA_REVISION</code> (pin a commit, or the literal <code>reviewed</code>), and <code>LAYA_JEV_STRICT</code> to project responses onto a strict wire contract for clients that reject unknown fields. With <code>LAYA_API_KEY</code> set, <code>/health</code> keeps answering liveness but requires the bearer for checkpoint and device detail.</p>
+
+        <h3>MCP</h3>
+        <div class="codewrap">
+          <div class="codeblock"><pre>pip install <span class="s">"laya[mcp]"</span>
+laya-mcp-server                  <span class="c"># stdio server</span></pre></div>
+        </div>
+        <p>Exposes <code>laya_status</code>, <code>laya_route</code>, <code>laya_predict</code>, <code>laya_predict_batch</code>, <code>laya_route_batch</code>, <code>laya_preset</code>, <code>laya_shortlist</code> and <code>laya_decide</code>. Preset names here are <code>guard</code>, <code>moderation</code>, <code>triage</code>, <code>model_router</code> and <code>email</code>.</p>
+
+        <h3>Framework integrations</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Import</th><th>Framework</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>LayaRouter</code></td><td>LangChain / LangGraph</td><td>typed conditional-edge routing with confidence gating</td></tr>
+              <tr><td><code>LayaGuardrail</code></td><td>LangChain</td><td>inline input screening; <code>raise</code>, <code>filter</code> or <code>annotate</code></td></tr>
+              <tr><td><code>LayaTriage</code></td><td>LangGraph</td><td>a node that enriches graph state with intent and risk</td></tr>
+              <tr><td><code>LayaEvaluator</code></td><td>LangChain</td><td>rubric grading without a generation call</td></tr>
+              <tr><td><code>LayaDecision</code></td><td>LangChain (LCEL)</td><td><code>decide()</code> as a runnable; bad schemas fail at construction</td></tr>
+              <tr><td><code>LayaSingleSelector</code>, <code>LayaMultiSelector</code>, <code>LayaQueryRouter</code></td><td>LlamaIndex</td><td>drop-in selectors and a query router</td></tr>
+              <tr><td><code>LayaCrewRouter</code>, <code>LayaTaskGuard</code></td><td>CrewAI</td><td>task-to-agent routing and task guardrails</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Evaluation</h3>
+        <div class="codewrap">
+          <div class="codeblock"><pre>laya-evals validate dataset.jsonl
+laya-evals run dataset.jsonl --min-accuracy <span class="n">0.9</span> --max-ece <span class="n">0.05</span> --baseline prev.json</pre></div>
+        </div>
+        <p>Metrics include ECE, Brier, AURC and selective accuracy, with per-slice gates so a slice cannot regress while the overall number improves. <code>--onnx</code> scores an export through the same gates as the torch path.</p>
+      </section>
+
+      <!-- ================= 10 ================= -->
+      <section id="hooks">
+        <h2>Hooks</h2>
+        <p>Six lifecycle events: <code>on_route</code>, <code>on_load</code>, <code>on_evict</code>, <code>on_predict_start</code>, <code>on_predict_end</code>, <code>on_error</code>. Subclass <code>BaseHook</code> and implement only what you need.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> BaseHook
+
+<span class="k">class</span> Metrics(BaseHook):
+    <span class="k">def</span> on_route(self, ctx):
+        print(<span class="s">"chose"</span>, ctx.decision[<span class="s">"model"</span>])
+
+    <span class="k">def</span> on_predict_end(self, ctx):
+        print(ctx.model, ctx.elapsed_ms, ctx.usage)
+
+router = Router(hooks=[Metrics()], hooks_raise=<span class="k">False</span>, hooks_timeout=<span class="n">0.05</span>)</pre></div>
+        </div>
+
+        <p><code>ctx</code> carries <code>states</code>, <code>questions</code>, <code>results</code>, <code>decision</code>, <code>model</code>, <code>usage</code>, <code>elapsed_ms</code>, a per-call <code>run_id</code>, and <code>error</code>. Start hooks may rewrite <code>ctx.states</code>, <code>ctx.questions</code> and the token budgets; end hooks may rewrite <code>ctx.results</code>.</p>
+
+        <p>A start hook that has a cached answer calls <code>ctx.skip([...])</code> with one result per state, and inference is skipped while the end hooks still run. That is the caching seam.</p>
+
+        <p><code>hooks_raise=True</code> (the default) lets a broken hook fail the request; set it false to downgrade to a warning. <code>hooks_timeout</code> bounds each hook call on a worker thread &mdash; it protects the request, not the process, since the thread cannot be interrupted. Hooks registered per call run after the installed ones.</p>
+      </section>
+
+      <!-- ================= 11 ================= -->
+      <section id="accuracy">
+        <h2>Accuracy and calibration</h2>
+
+        <p>The shipped checkpoints work zero-shot. Fine-tuning on decisions from your own domain is where accuracy jumps: on the project's own typed-decisions benchmark, a fine-tuned checkpoint scored <strong>0.766</strong> against <strong>0.362</strong> for the base checkpoint on the same decisions. Treat zero-shot as a good default and a fine-tuned model as the real product.</p>
+
+        <p>Before fine-tuning, two cheaper levers. Fit temperatures on labeled data, then fit abstention thresholds on the calibrated output:</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre><span class="k">from</span> laya <span class="k">import</span> fit_temperatures, records_from_labeled
+
+records = records_from_labeled(agent, labeled_pairs)
+temperature = fit_temperatures(records)
+
+agent.save_calibration(<span class="s">"calibration.json"</span>)   <span class="c"># temperatures + checkpoint identity, no weights</span>
+agent.load_calibration(<span class="s">"calibration.json"</span>)</pre></div>
+        </div>
+
+        <h3>The warning you will probably see</h3>
+        <p>On first load the shipped english checkpoint emits this:</p>
+        <div class="codewrap">
+          <div class="codeblock"><pre>RuntimeWarning: laya: this checkpoint ships invalid temperatures or values
+outside [0.5, 5]; using choice:11+=0.1005 -> 0.5. Treat confidence from the
+affected entries as uncalibrated.</pre></div>
+        </div>
+        <p>Only the <code>choice:11+</code> bucket is affected &mdash; <code>choice</code> questions with eleven or more options. A three-option question like <code>department</code> is untouched, and argmax answers are unaffected either way. If you have wide <code>choice</code> questions, gate on <code>answer_confidence</code> only after fitting temperatures, or check the reliability curve first.</p>
+
+        <div class="note">
+          <span class="note-head">Check truncation before blaming the model</span>
+          <p>Most "the model got it wrong" reports on long inputs are <code>usage["truncated"] == True</code>. Verify that before tuning anything.</p>
+        </div>
+      </section>
+
+      <!-- ================= 12 ================= -->
+      <section id="gotchas">
+        <h2>Gotchas</h2>
+        <ul class="gotchas">
+          <li><b>Router(models=...) is plural</b><code>model=</code> is a per-call argument on <code>predict</code>. Passing <code>model=</code> to the constructor is silently a different thing to reach for.</li>
+          <li><b>noul returns P(true), always</b>Descriptive <code>criteria</code> and <code>labels</code> change the text the model sees. The number is still P(true), so a confident "no" is a low number with high <code>answer_confidence</code>.</li>
+          <li><b>Gate on answer_confidence, not confidence</b>Entropy <code>confidence</code> drifts with option count, so a threshold on it does not transfer between questions.</li>
+          <li><b>A list state is a conversation</b>A <code>list</code> is JSON-serialized as ordered turns, newest last, and truncates from the <em>left</em> so the newest turn survives. Strings and dicts truncate from the right.</li>
+          <li><b>Empty questions skip inference</b><code>questions={}</code> returns empty answers with zero tokens and no forward pass. Useful as a short-circuit; a surprise if you expected an error.</li>
+          <li><b>predict_long takes no token budgets</b>It sizes its own windows. Pass <code>max_len</code> on <code>predict</code> instead, or use <code>max_len=8192</code> with <code>model="multilingual"</code>.</li>
+          <li><b>Agent options go through agent_kwargs</b><code>fast</code>, <code>compile</code> and <code>lang_temperatures</code> are <code>Agent</code> arguments. On a <code>Router</code> they reach it via <code>agent_kwargs={...}</code>.</li>
+          <li><b>Adding questions is nearly free; splitting calls is not</b>Eight questions in one <code>predict</code> is one forward pass. Eight <code>predict</code> calls is eight.</li>
+          <li><b>max_loaded is 2 by default</b>An LRU over checkpoints. <code>preload=True</code> loads all three and raises the cap; it is not an out-of-memory remedy.</li>
+        </ul>
+      </section>
+
+      <!-- ================= 13 ================= -->
+      <section id="worked">
+        <h2>The worked example</h2>
+        <p>Eight questions over one support message: two scores, four nouls, one choice. Every number below is real output from this file.</p>
+
+        <div class="codewrap">
+          <span class="filename">main.py</span>
+          <button class="copy" type="button" data-copy>copy</button>
+          <div class="codeblock is-accent"><pre><span class="k">from</span> laya <span class="k">import</span> Router
+
+router = Router()  <span class="c"># downloads a checkpoint on first use</span>
+
+state = <span class="s">"Hi, we were billed twice for March. Please refund the duplicate today or we will cancel our plan."</span>
+questions = {
+    <span class="s">"department"</span>: {<span class="s">"type"</span>: <span class="s">"choice"</span>, <span class="s">"instructions"</span>: <span class="s">"Which department should handle `message`?"</span>,
+                   <span class="s">"criteria"</span>: {<span class="s">"billing"</span>: <span class="s">"invoices, payments, refunds"</span>,
+                                <span class="s">"technical"</span>: <span class="s">"bugs, outages, system errors"</span>,
+                                <span class="s">"other"</span>: <span class="s">"everything else"</span>}},
+    <span class="s">"urgency"</span>: {<span class="s">"type"</span>: <span class="s">"score"</span>, <span class="s">"instructions"</span>: <span class="s">"How urgent is `message`?"</span>,
+                <span class="s">"criteria"</span>: [<span class="s">"not urgent"</span>, <span class="s">"soon"</span>, <span class="s">"blocking"</span>]},
+    <span class="s">"churn_risk"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>, <span class="s">"instructions"</span>: <span class="s">"Does `message` threaten to cancel or leave?"</span>},
+    <span class="s">"sentiment"</span>: {<span class="s">"type"</span>: <span class="s">"score"</span>, <span class="s">"instructions"</span>: <span class="s">"How unhappy is the user in `message`?"</span>,
+                  <span class="s">"criteria"</span>: [<span class="s">"neutral"</span>, <span class="s">"annoyed"</span>, <span class="s">"angry"</span>, <span class="s">"furious"</span>]},
+    <span class="s">"refund_requested"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>, <span class="s">"instructions"</span>: <span class="s">"Does `message` ask for money back?"</span>,
+                         <span class="s">"criteria"</span>: {<span class="s">"true"</span>: <span class="s">"asks for a refund or a charge reversed"</span>,
+                                      <span class="s">"false"</span>: <span class="s">"no refund requested"</span>}},
+    <span class="s">"deadline_mentioned"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>,
+                           <span class="s">"instructions"</span>: <span class="s">"Does `message` name a deadline or time pressure?"</span>},
+    <span class="s">"security_related"</span>: {<span class="s">"type"</span>: <span class="s">"noul"</span>,
+                         <span class="s">"instructions"</span>: <span class="s">"Does `message` report fraud, account compromise or a data breach?"</span>},
+}
+
+<span class="k">def</span> main() -&gt; <span class="k">None</span>:
+    result = router.predict(state, questions)
+
+    print(result[<span class="s">"answers"</span>][<span class="s">"department"</span>][<span class="s">"choice"</span>])            <span class="c"># billing</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"department"</span>][<span class="s">"answer_confidence"</span>])  <span class="c"># 0.9875 -- max(p)</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"urgency"</span>][<span class="s">"score"</span>])                <span class="c"># 1.79  -- 0..2 scale</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"churn_risk"</span>][<span class="s">"noul"</span>])              <span class="c"># 0.84  -- P(true)</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"sentiment"</span>][<span class="s">"score"</span>])              <span class="c"># 1.64  -- 0..3 scale</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"refund_requested"</span>][<span class="s">"noul"</span>])        <span class="c"># 0.91</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"deadline_mentioned"</span>][<span class="s">"noul"</span>])      <span class="c"># 0.24  -- a confident no</span>
+    print(result[<span class="s">"answers"</span>][<span class="s">"security_related"</span>][<span class="s">"noul"</span>])        <span class="c"># 0.37</span>
+    print(result[<span class="s">"routing"</span>][<span class="s">"model"</span>])                           <span class="c"># english</span>
+
+
+<span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
+    main()</pre></div>
+        </div>
+
+        <h3>What this example demonstrates</h3>
+        <div class="ledger">
+          <div><span class="k">choice</span> <span class="v">&mdash; a dict of criteria with descriptions, read via <code>["choice"]</code></span></div>
+          <div><span class="k">score</span> <span class="v">&mdash; two different scale lengths, read as an expected level via <code>["score"]</code></span></div>
+          <div><span class="k">noul</span> <span class="v">&mdash; both bare and with true/false criteria, read as P(true) via <code>["noul"]</code></span></div>
+          <div><span class="k">routing</span> <span class="v">&mdash; reading which checkpoint answered</span></div>
+          <div><span class="k">convention</span> <span class="v">&mdash; backticked <code>`message`</code> in every instruction, so <code>presets.state_field()</code> resolves and the set is portable to the CLI</span></div>
+        </div>
+
+        <p>The <code>__main__</code> guard keeps <code>import main</code> from running inference, which matters as soon as you want to reuse the question set from a test or a notebook.</p>
+
+        <div class="note">
+          <span class="note-head">Two questions disagree, and that is information</span>
+          <p><code>urgency</code> reads 1.79 ("blocking") while <code>deadline_mentioned</code> reads a confident no. Both can be true: the message is urgent in tone but names no actual deadline. If your routing depends on genuine time pressure, ask about the deadline and ignore the urgency score &mdash; or tighten the <code>urgency</code> criteria so "urgent tone" and "hard deadline" are not conflated in one scale.</p>
+        </div>
+      </section>
+
+      <footer>
+        <span>Verified against laya 0.3.24</span>
+        <span>Every payload and number on this page came from a run against the local venv</span>
+      </footer>
+
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- copy buttons ----
+  document.querySelectorAll(".codewrap").forEach(function (wrap) {
+    var btn = wrap.querySelector("[data-copy]");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var pre = wrap.querySelector("pre");
+      if (!pre) return;
+      var text = pre.innerText;
+      var done = function (ok) {
+        btn.textContent = ok ? "copied" : "select";
+        setTimeout(function () { btn.textContent = "copy"; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          function () { done(true); },
+          function () {
+            selectNode(pre);
+            done(false);
+          }
+        );
+      } else {
+        selectNode(pre);
+        done(false);
+      }
+    });
+  });
+
+  function selectNode(node) {
+    try {
+      var r = document.createRange();
+      r.selectNodeContents(node);
+      var s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    } catch (e) { /* selection unavailable; text stays readable */ }
+  }
+
+  // ---- active section in the rail ----
+  var links = Array.prototype.slice.call(document.querySelectorAll("nav.rail a"));
+  var targets = links
+    .map(function (a) { return document.getElementById(a.getAttribute("href").slice(1)); })
+    .filter(Boolean);
+  if (!targets.length || !("IntersectionObserver" in window)) return;
+
+  var visible = new Set();
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) visible.add(e.target.id);
+      else visible.delete(e.target.id);
+    });
+    var current = null;
+    for (var i = 0; i < targets.length; i++) {
+      if (visible.has(targets[i].id)) { current = targets[i].id; break; }
+    }
+    links.forEach(function (a) {
+      a.classList.toggle("on", current !== null && a.getAttribute("href") === "#" + current);
+    });
+  }, { rootMargin: "-10% 0px -70% 0px", threshold: 0 });
+
+  targets.forEach(function (t) { io.observe(t); });
+})();
+</script>
