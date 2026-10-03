@@ -5,5 +5,8 @@
 __pycache__/
 *.py[cod]
 
+# Checkpoints fetched into the repo by fetch_model.py --dir models/...
+models/
+
 # macOS
 .DS_Store

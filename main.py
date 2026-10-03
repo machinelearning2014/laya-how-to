@@ -11,6 +11,7 @@ Every printed value in the comments below is real output from this file.
 from __future__ import annotations
 
 import json
+import os
 import warnings
 
 import numpy as np
@@ -49,7 +50,23 @@ QUESTIONS = {
                          "labels": {"true": "security incident", "false": "ordinary support"}},
 }
 
-router = Router()
+# Checkpoints fetched from this repo's GitHub Releases with fetch_model.py, if any.
+# `Router(models=...)` replaces the whole table, so start from the built-ins and
+# override only the names found locally -- otherwise routing to a checkpoint you
+# have not fetched would fail with "unknown model".
+LOCAL_MODELS = os.path.expanduser("~/.laya/models")
+
+
+def model_sources() -> dict:
+    models = dict(laya.DEFAULT_MODELS)
+    for name in models:
+        local = os.path.join(LOCAL_MODELS, name)
+        if os.path.isfile(os.path.join(local, "model.safetensors")):
+            models[name] = local
+    return models
+
+
+router = Router(models=model_sources())
 
 
 def section(n: int, title: str) -> None:
@@ -75,6 +92,13 @@ def show_routing() -> None:
 
     print("\n  Precedence: model > task > detected workflow > lang > lang_guess > detection > default")
     print("  Aliases:    en/laya/default | multi/ml | typed/decisions")
+
+    # Where each checkpoint is loaded from: a copy fetched by fetch_model.py, or the Hub.
+    sources = {name: ("local" if spec != laya.DEFAULT_MODELS[name] else "hub")
+               for name, spec in model_sources().items()}
+    print("  Sources:   ", ", ".join(f"{n}={s}" for n, s in sources.items()))
+    if "local" not in sources.values():
+        print("             (fetch one with: python fetch_model.py english)")
 
 
 # ---------------------------------------------------------------------------

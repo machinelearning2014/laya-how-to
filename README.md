@@ -79,6 +79,35 @@ Four commands install with the package. `laya` and `laya-evals` need only core d
 reference page's CLI section documents every mode, including which features have no CLI
 surface at all.
 
+## Run it with no Hugging Face access
+
+By default `Router()` pulls weights from the Hub once and caches them. To cut the Hub out
+entirely — offline, air-gapped, or pinned to a copy you control — fetch the checkpoint from
+this repo's GitHub Releases instead:
+
+```bash
+python fetch_model.py english           # ~743 MB, SHA-256 verified, unpacked to ~/.laya/models/english
+python fetch_model.py english --check   # re-verify an existing copy; downloads nothing
+python fetch_model.py --list            # what is available
+```
+
+`main.py` picks it up automatically: it starts from the built-in checkpoint table and
+overrides only the names it finds locally, so routing to a checkpoint you have **not**
+fetched still works. Section 01 prints which source each one is using. With `english`
+fetched, `HF_HUB_OFFLINE=1 .venv/bin/python main.py` runs the whole tour with no network.
+
+To point laya at a copy yourself:
+
+```python
+laya.load("~/.laya/models/english")                     # direct
+Router(models={"english": "~/.laya/models/english"})    # keep routing, swap the storage
+```
+
+`predict(..., model=...)` will **not** accept a path — that argument resolves strictly
+against the registry (`english` / `multilingual` / `typed-decisions`), so use `models=` or
+`load`. The script verifies the SHA-256 of `model.safetensors` inside the archive rather
+than the archive itself, so repackaging the tarball does not invalidate the check.
+
 ## The three question types
 
 ```python

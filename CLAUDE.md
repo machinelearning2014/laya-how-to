@@ -10,6 +10,7 @@ human-facing intro:
 - `main.py` — a twelve-section tour of the in-process API, english checkpoint only.
 - `index.html` — the field reference, and simultaneously the live GitHub Pages site.
 - `README.md` — the public-facing intro for the repo.
+- `fetch_model.py` — pulls a checkpoint from this repo's GitHub Releases instead of the Hub.
 
 There is no package manifest, no build step, and no test suite. Work here is either editing the
 tour, editing the reference page, or verifying a claim about laya's behaviour against the
@@ -44,6 +45,15 @@ tools `import main` to reuse the question set without triggering a full inferenc
 Keep it english-only. The multilingual and typed-decisions checkpoints are not cached, so importing
 them here would turn a fast offline run into a ~750 MB download. Areas that need them are shown
 through `route()` (which loads no weights) or listed in the final section as separate processes.
+
+`model_sources()` builds the Router's checkpoint table by starting from `laya.DEFAULT_MODELS` and
+overriding only the names present in `~/.laya/models/`. That matters: `Router(models=...)` replaces
+the **whole** table, so passing only the locally fetched entries would break routing to every
+checkpoint you had not fetched, with `ValueError: unknown model`. Keep the copy-and-override shape.
+
+`fetch_model.py` verifies the SHA-256 of `model.safetensors` *inside* the archive rather than the
+tarball, so repackaging does not invalidate the recorded digest. Build release tarballs with
+`COPYFILE_DISABLE=1 tar czf …`, or macOS adds `._*` AppleDouble members to the archive.
 
 **`index.html`** is deliberately self-contained — inline CSS and JS, no external scripts, no build
 tooling, no image assets. The only external request is Google Fonts. Keep it that way; it is served
