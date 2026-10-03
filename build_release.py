@@ -90,10 +90,39 @@ def sha256(path: str, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def build(source: str, out_dir: str) -> dict:
+def read_download_metadata(source: str) -> tuple[str | None, dict[str, str]]:
+    """The revision and per-file etags the Hub downloader left in `.cache/huggingface/`.
+
+    Each sidecar holds the revision on line 1 and the file's etag on line 2 -- the
+    content SHA-256 for LFS files, the git blob id for small ones. Recording them is what
+    lets `check_updates.py` diff against the Hub without downloading 2.4 GB.
+    """
+    download_dir = os.path.join(source, ".cache", "huggingface", "download")
+    revision, etags = None, {}
+    if not os.path.isdir(download_dir):
+        return None, {}
+    for root, _, files in os.walk(download_dir):
+        for name in files:
+            if not name.endswith(".metadata"):
+                continue
+            path = os.path.join(root, name)
+            rel = os.path.relpath(path, download_dir)[: -len(".metadata")]
+            try:
+                lines = open(path).read().splitlines()
+            except OSError:
+                continue
+            if len(lines) >= 2:
+                revision = revision or lines[0].strip()
+                etags[rel] = lines[1].strip()
+    return revision, etags
+
+
+def build(source: str, out_dir: str, repo: str) -> dict:
     os.makedirs(out_dir, exist_ok=True)
-    manifest = {"source": os.path.abspath(source), "generated": time.strftime("%Y-%m-%d"),
-                "files": {}, "assets": {}, "bundles": {}}
+    revision, etags = read_download_metadata(source)
+    manifest = {"repo": repo, "revision": revision,
+                "source": os.path.abspath(source), "generated": time.strftime("%Y-%m-%d"),
+                "files": {}, "assets": {}, "bundles": {}, "etags": {}}
 
     for bundle, entries in BUNDLES.items():
         pairs = walk(source, entries)
@@ -113,6 +142,8 @@ def build(source: str, out_dir: str) -> dict:
         manifest["bundles"][bundle] = [rel for _, rel in pairs]
         for full, rel in pairs:
             manifest["files"][rel] = sha256(full)
+            if rel in etags:
+                manifest["etags"][rel] = etags[rel]
         print(f"  {bundle:<30} {len(pairs):>2} files  {size/1e6:7.1f} MB  {manifest['assets'][bundle]['digest'][:16]}…")
 
     manifest["total_files"] = len(manifest["files"])
@@ -128,11 +159,17 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--source", required=True, help="directory holding the complete checkpoint repo")
     ap.add_argument("--out", default="dist", help="where to write the archives (default: dist)")
+    ap.add_argument("--repo", default="convaiinnovations/laya", help="upstream Hub repo id")
     args = ap.parse_args()
     if not os.path.isdir(args.source):
         raise SystemExit(f"no such directory: {args.source}")
     print(f"packaging {args.source} -> {args.out}")
-    build(args.source, args.out)
+    manifest = build(args.source, args.out, args.repo)
+    if manifest["revision"]:
+        print(f"  upstream revision: {manifest['revision']}")
+    else:
+        print("  WARNING: no downloader metadata found, so the manifest has no revision;"
+              " check_updates.py will not be able to tell whether this mirror is current.")
     print("\nPublish with:\n  gh release create <tag> dist/*.tar.gz dist/MANIFEST.json --repo <owner>/<repo>")
 
 

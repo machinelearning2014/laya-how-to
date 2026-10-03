@@ -70,7 +70,14 @@ same `(repo, subfolder)` shape the built-in table uses, because the Hub repo pac
 checkpoints that way too.
 
 Release assets are immutable, so a new upstream revision needs a new tag and a re-upload rather than
-an overwrite. Bump `TAG` in `fetch_model.py` when you publish one.
+an overwrite. `fetch_model.py` defaults to GitHub's `/releases/latest/download` redirect, so a new
+tag needs no code change; `--tag` pins one.
+
+`MANIFEST.json` records the upstream `revision` and a per-file `etag` (the content SHA-256 for LFS
+files, the git blob id for small ones), read from the Hub downloader's `.cache/huggingface/download/
+*.metadata` sidecars at build time. `check_updates.py` uses those to diff against the Hub's current
+`main` without downloading anything: exit 0 current, 1 update available. If the sidecars are missing
+the manifest has no revision and the checker can only report file-level differences.
 
 **`index.html`** is deliberately self-contained — inline CSS and JS, no external scripts, no build
 tooling, no image assets. The only external request is Google Fonts. Keep it that way; it is served

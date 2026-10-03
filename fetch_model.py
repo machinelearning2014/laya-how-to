@@ -44,9 +44,17 @@ import urllib.error
 import urllib.request
 
 REPO = "machinelearning2014/laya-how-to"
-TAG = "v2"
+DEFAULT_TAG = "latest"  # GitHub's /releases/latest/download redirects to the newest release,
+                        # so publishing a new tag needs no edit here. Pin with --tag for
+                        # reproducibility.
 DEFAULT_DIR = os.path.expanduser("~/.laya/mirror")
 MANIFEST = "MANIFEST.json"
+
+
+def release_url(tag: str) -> str:
+    if tag == "latest":
+        return f"https://github.com/{REPO}/releases/latest/download"
+    return f"https://github.com/{REPO}/releases/download/{tag}"
 
 # checkpoint name -> the archive holding it. "extras" is the repo's remaining files
 # (README, .gitattributes, the rl_* modules, eval/ and assets/).
@@ -94,7 +102,7 @@ def download(url: str, dest: str, label: str = "") -> None:
             f"failed to fetch {url}\n  HTTP {e.code} {e.reason}\n"
             f"  If the release does not exist:\n"
             f"    python build_release.py --source <full-download> --out dist\n"
-            f"    gh release create {TAG} dist/* --repo {REPO}"
+            f"    gh release create <tag> dist/*.tar.gz dist/MANIFEST.json --repo {REPO}"
         ) from None
     except urllib.error.URLError as e:
         raise SystemExit(f"failed to fetch {url}\n  {e.reason}") from None
@@ -197,21 +205,24 @@ def main() -> None:
                     help=f"checkpoints to fetch (default: all). One of: {', '.join(sorted(BUNDLES))}")
     ap.add_argument("--all", action="store_true", help="fetch every bundle (the default)")
     ap.add_argument("--dir", default=DEFAULT_DIR, help=f"mirror directory (default: {DEFAULT_DIR})")
-    ap.add_argument("--base-url", default=f"https://github.com/{REPO}/releases/download/{TAG}",
-                    help="override the release URL")
+    ap.add_argument("--tag", default=DEFAULT_TAG,
+                    help=f"release tag, or 'latest' (default: {DEFAULT_TAG})")
+    ap.add_argument("--base-url", default=None, help="override the release URL entirely")
     ap.add_argument("--check", action="store_true", help="verify the mirror; download nothing")
     ap.add_argument("--list", action="store_true", help="list the bundles")
     args = ap.parse_args()
 
+    base_url = args.base_url or release_url(args.tag)
+
     if args.list:
-        print(f"  release: https://github.com/{REPO}/releases/tag/{TAG}")
+        print(f"  release: {release_url(args.tag)}")
         for name, bundle in BUNDLES.items():
             print(f"  {name:<17} {bundle}")
         return
 
     names = args.names or list(BUNDLES)
-    print(f"laya mirror -> {args.dir}")
-    fetch(names, args.dir, args.base_url, args.check)
+    print(f"laya mirror -> {args.dir}   (release: {args.tag})")
+    fetch(names, args.dir, base_url, args.check)
 
 
 if __name__ == "__main__":

@@ -137,6 +137,41 @@ overwrite — `build_release.py` rebuilds the archives deterministically (fixed 
 ownership, no gzip timestamp), so a rebuild from the same source produces byte-identical
 files and the recorded digests stay valid.
 
+`fetch_model.py` follows the newest release by default, so publishing a new tag needs no code
+change. Pin with `--tag v2` when you want a fixed revision.
+
+## Refreshing the mirror when upstream moves
+
+```bash
+python check_updates.py --from-release    # is the published mirror still current?
+```
+
+It compares the Hub's `main` against the revision recorded in the manifest and, when they
+differ, reports exactly what changed — without downloading 2.4 GB, because the Hub publishes a
+content hash per file that the downloader records in its own sidecars. Exit code is `0` when
+current, `1` when an update is available, so it works as a cron or CI check.
+
+```
+  built from: 55cf4c4ebb4ebe31…  (2026-10-03)
+  now       : 7a1f9c02d3be4410…  (2026-11-02)
+  UPDATE AVAILABLE
+    modified  model.safetensors
+    added     eval/results_v2.json
+```
+
+When it reports an update:
+
+```bash
+python -c "from huggingface_hub import snapshot_download as d; \
+           d('convaiinnovations/laya', local_dir='laya-full', ignore_patterns=['.cache/*'])"
+python build_release.py --source laya-full --out dist
+gh release create v3 dist/*.tar.gz dist/MANIFEST.json --repo machinelearning2014/laya-how-to
+```
+
+Publish with a new tag, never an overwrite — assets are immutable. Existing mirrors keep
+working; they are simply pinned to the revision they were built from, which is why the
+manifest records `revision` rather than only file digests.
+
 ## The three question types
 
 ```python
