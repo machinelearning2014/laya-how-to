@@ -91,6 +91,10 @@ python fetch_model.py english --check   # re-verify an existing copy; downloads 
 python fetch_model.py --list            # what is available
 ```
 
+The asset lives at [releases/tag/v1](https://github.com/machinelearning2014/laya-how-to/releases/tag/v1)
+and is immutable once published, so a new checkpoint means a new tag rather than an overwrite.
+Only `english` is published this way so far; the other two checkpoints still come from the Hub.
+
 `main.py` picks it up automatically: it starts from the built-in checkpoint table and
 overrides only the names it finds locally, so routing to a checkpoint you have **not**
 fetched still works. Section 01 prints which source each one is using. With `english`

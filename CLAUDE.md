@@ -55,6 +55,15 @@ checkpoint you had not fetched, with `ValueError: unknown model`. Keep the copy-
 tarball, so repackaging does not invalidate the recorded digest. Build release tarballs with
 `COPYFILE_DISABLE=1 tar czf …`, or macOS adds `._*` AppleDouble members to the archive.
 
+## Hosting
+
+The `english` checkpoint is published as a GitHub Release asset — tag `v1`, asset
+`english-ckpt.tar.gz` (778,429,593 bytes), which `fetch_model.py` downloads and verifies. Only
+`english` has a release; `multilingual` and `typed-decisions` stay on the Hub, and their entries in
+`fetch_model.py`'s `MODELS` dict are commented out until an asset exists for each. Publishing a new
+checkpoint means a new tag, a recomputed digest in `MODELS`, and a manual re-upload — release assets
+are immutable once uploaded, so replacing one needs a new tag rather than an overwrite.
+
 **`index.html`** is deliberately self-contained — inline CSS and JS, no external scripts, no build
 tooling, no image assets. The only external request is Google Fonts. Keep it that way; it is served
 straight from the repository root by GitHub Pages, so any added dependency has to be reachable from
