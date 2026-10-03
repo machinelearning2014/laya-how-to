@@ -301,7 +301,9 @@ def show_hooks() -> None:
             self.events.append(("end_ms", round(ctx.elapsed_ms, 1)))
 
     hook = LogAndCache()
-    hooked = Router(hooks=[hook], hooks_raise=False, hooks_timeout=1.0)
+    # model_sources(), not a bare Router(): a second Router with the default table would
+    # reach for the Hub even when a fetched copy is present, which breaks offline use.
+    hooked = Router(models=model_sources(), hooks=[hook], hooks_raise=False, hooks_timeout=1.0)
     qs = {"urgent": {"type": "noul", "instructions": "Is `message` urgent?"}}
 
     hooked.predict(STATE, qs)   # cold: routes, runs, caches
