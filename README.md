@@ -238,6 +238,36 @@ gh release delete rev-<old-sha> --repo machinelearning2014/laya-how-to --yes --c
 Keeping the two or three most recent leaves you something to fall back to without accumulating
 indefinitely.
 
+## Measure before you trust it: `guardrail_bench.py`
+
+The claim this library rests on is that `answer_confidence` is calibrated enough to
+threshold, so you can act on the answers it is sure about and abstain on the rest. That is
+easy to assert and easy to falsify, so this measures it on labelled data:
+
+```bash
+python guardrail_bench.py                        # the bundled guardrail set
+python guardrail_bench.py --only jailbreak       # one question
+python guardrail_bench.py --data mine.jsonl      # your own rows
+python guardrail_bench.py --questions q.json --preset guard
+```
+
+Rows are one JSON object per line — `{"text": "...", "injection": 0|1}` — so you can point it
+at your own traffic once someone has labelled a sample of it.
+
+It reports three things: accuracy per question, calibration (ECE before and after fitting a
+temperature), and **the selective curve** — as the confidence threshold rises, what fraction
+of inputs still gets an answer and how accurate that answer is. The curve is the actual
+deployment trade, and accuracy alone hides it.
+
+On the bundled 45-row adversarial set, the shipped `guard` preset scores 73.3% on `jailbreak`
+at full coverage. Raising the threshold to 0.95 answers 69% of inputs at **90.3%** accuracy —
+so abstention buys 17 points. It also over-triggers rather than under-detects: 35% false
+positives against 18% false negatives, because benign text that merely borrows the vocabulary
+("write a system prompt for my chatbot") reads as an attack.
+
+That is the tool doing its job. Treat it as a harness to run on your own labelled rows before
+you pick a threshold, not as a verdict on the preset.
+
 ## The three question types
 
 ```python

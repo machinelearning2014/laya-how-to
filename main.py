@@ -21,6 +21,8 @@ import laya
 from laya import BaseHook, Router, apply_confidence_gate
 from laya.calibrate import records_from_labeled
 
+from local_models import model_sources
+
 # The shipped english checkpoint carries a `choice:11+` temperature outside the accepted
 # range and emits a RuntimeWarning on load. Section 05 explains it; it affects no argmax
 # here, so it is silenced to keep the tour readable.
@@ -49,26 +51,6 @@ QUESTIONS = {
                          "instructions": "Does `message` report fraud, account compromise or a data breach?",
                          "labels": {"true": "security incident", "false": "ordinary support"}},
 }
-
-# Checkpoints fetched from this repo's GitHub Releases with fetch_model.py, if any.
-# `Router(models=...)` replaces the whole table, so start from the built-ins and
-# override only the names found locally -- otherwise routing to a checkpoint you
-# have not fetched would fail with "unknown model".
-MIRROR = os.path.expanduser("~/.laya/mirror")
-# The mirror reproduces the Hub repo's layout: english sits at its root, the other two
-# are subfolders. That is the same (repo, subfolder) shape the built-in table uses.
-MIRROR_SUBFOLDERS = {"english": None, "multilingual": "multilingual",
-                     "typed-decisions": "typed-decisions"}
-
-
-def model_sources() -> dict:
-    models = dict(laya.DEFAULT_MODELS)
-    for name, sub in MIRROR_SUBFOLDERS.items():
-        where = os.path.join(MIRROR, sub) if sub else MIRROR
-        if os.path.isfile(os.path.join(where, "model.safetensors")):
-            models[name] = (MIRROR, sub) if sub else MIRROR
-    return models
-
 
 router = Router(models=model_sources())
 

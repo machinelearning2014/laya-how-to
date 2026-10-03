@@ -11,6 +11,8 @@ human-facing intro:
 - `index.html` — the field reference, and simultaneously the live GitHub Pages site.
 - `README.md` — the public-facing intro for the repo.
 - `fetch_model.py` — pulls a checkpoint from this repo's GitHub Releases instead of the Hub.
+- `guardrail_bench.py` — measures accuracy, calibration and the selective curve on labelled rows.
+- `local_models.py` — the shared checkpoint-source helper `main.py` and `guardrail_bench.py` import.
 
 There is no package manifest, no build step, and no test suite. Work here is either editing the
 tour, editing the reference page, or verifying a claim about laya's behaviour against the
