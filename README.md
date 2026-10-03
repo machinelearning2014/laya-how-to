@@ -254,6 +254,26 @@ python guardrail_bench.py --questions q.json --preset guard
 Rows are one JSON object per line — `{"text": "...", "injection": 0|1}` — so you can point it
 at your own traffic once someone has labelled a sample of it.
 
+Two matched shape references ship with it, in a different domain from the guardrail set so
+they read as templates rather than a second benchmark:
+
+```bash
+python guardrail_bench.py --data data/sample_rows.jsonl \
+                          --questions data/sample_questions.json \
+                          --label refund_request
+```
+
+`sample_rows.jsonl` is ten labelled support messages and `sample_questions.json` is the one
+question they are scored against. Two things they demonstrate that are easy to get wrong:
+
+- **The label and the question must describe the same decision.** `--data` supplies the
+  examples and their correct answers; `--questions` defines what the model is asked. Point
+  one at refunds and the other at injections and every number is noise, because nothing
+  checks that the two correspond.
+- **`note: "hard negative: ..."` puts a row in its own accuracy group.** Those are the rows
+  that merely read like a positive, and they are where the failures concentrate: on the
+  sample set the question gets 100% on clean negatives and 67% on hard ones.
+
 It reports three things: accuracy per question, calibration (ECE before and after fitting a
 temperature), and **the selective curve** — as the confidence threshold rises, what fraction
 of inputs still gets an answer and how accurate that answer is. The curve is the actual

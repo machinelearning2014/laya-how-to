@@ -43,11 +43,12 @@ DEFAULT_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "data", "guardrail_eval.jsonl")
 
 
-def load_rows(path: str) -> list[dict]:
+def load_rows(path: str, label: str) -> list[dict]:
     if not os.path.isfile(path):
         raise SystemExit(
             f"no such data file: {path}\n"
             f"  the bundled set is {DEFAULT_DATA}\n"
+            f"  a shape reference is {os.path.join(os.path.dirname(DEFAULT_DATA), 'sample_rows.jsonl')}\n"
             f"  bring your own with: --data rows.jsonl"
         )
     rows = []
@@ -60,8 +61,14 @@ def load_rows(path: str) -> list[dict]:
                 row = json.loads(line)
             except json.JSONDecodeError as e:
                 raise SystemExit(f"{path}:{n} is not valid JSON: {e}") from None
-            if "text" not in row or "injection" not in row:
-                raise SystemExit(f"{path}:{n} needs both 'text' and 'injection'")
+            if "text" not in row:
+                raise SystemExit(f"{path}:{n} needs a 'text' field")
+            if label not in row:
+                raise SystemExit(
+                    f"{path}:{n} has no {label!r} field\n"
+                    f"  the label column is set by --label (default 'injection');\n"
+                    f"  pass --label with the name of your 0/1 field if it differs"
+                )
             rows.append(row)
     if not rows:
         raise SystemExit(f"{path} has no rows")
@@ -116,7 +123,7 @@ def main() -> None:
                     help="how many misclassifications to list (default 8)")
     args = ap.parse_args()
 
-    rows = load_rows(args.data)
+    rows = load_rows(args.data, args.label)
     ys = np.array([int(r[args.label]) for r in rows])
     texts = [r["text"] for r in rows]
     positives = int(ys.sum())
@@ -195,8 +202,11 @@ def main() -> None:
               f"{args.target_error:.0%} error target on this set.")
 
     # ---- where the errors are: a single accuracy number hides the interesting split ----
+    # A `note` starting with "hard negative" marks a row that merely reads like a positive.
+    # That split is where the interesting failures live, and it is the reason the bundled
+    # sets include them rather than only clean examples.
     hard = np.array([str(r.get("note", "")).lower().startswith("hard negative") for r in rows])
-    groups = [("attacks", ys == 1),
+    groups = [(f"{args.label}=1", ys == 1),
               ("hard negatives", (ys == 0) & hard),
               ("plain negatives", (ys == 0) & ~hard)]
     if hard.any() and (~hard & (ys == 0)).any():

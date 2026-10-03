@@ -1,0 +1,6 @@
+{
+  "refund_request": {
+    "type": "noul",
+    "instructions": "Does `message` ask for money back, or for a charge to be reversed?"
+  }
+}

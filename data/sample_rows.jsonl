@@ -1,0 +1,10 @@
+{"text": "I was charged twice for March, please refund the duplicate.", "refund_request": 1}
+{"text": "My card was billed for a plan I cancelled last week. I want my money back.", "refund_request": 1}
+{"text": "Can you reverse the charge for the add-on I never ordered?", "refund_request": 1}
+{"text": "I'd like a refund for last month's invoice, the service was down the whole time.", "refund_request": 1}
+{"text": "Where can I download my invoices?", "refund_request": 0}
+{"text": "How do I update the payment method on my account?", "refund_request": 0}
+{"text": "The app crashes every time I open the settings screen.", "refund_request": 0}
+{"text": "My account was charged twice - is that a bug in the billing system?", "refund_request": 0, "note": "hard negative: mentions the charge, asks no money back"}
+{"text": "I cancelled my subscription yesterday. Will I still be billed next month?", "refund_request": 0, "note": "hard negative: billing and cancellation, no refund asked"}
+{"text": "Refunds take 5-10 business days, right? Just checking the policy.", "refund_request": 0, "note": "hard negative: the word refund, but a policy question"}
