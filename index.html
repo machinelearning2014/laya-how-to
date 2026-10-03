@@ -392,19 +392,20 @@
       <div class="rail-label">Contents</div>
       <ol>
         <li><a href="#model"><span class="n">01</span>The mental model</a></li>
-        <li><a href="#setup"><span class="n">02</span>Setup and checkpoints</a></li>
-        <li><a href="#questions"><span class="n">03</span>Writing questions</a></li>
-        <li><a href="#results"><span class="n">04</span>Reading the result</a></li>
-        <li><a href="#confidence"><span class="n">05</span>Confidence and abstention</a></li>
-        <li><a href="#scale"><span class="n">06</span>Batch, long docs, many labels</a></li>
-        <li><a href="#typed"><span class="n">07</span>Typed output</a></li>
-        <li><a href="#cli"><span class="n">08</span>Presets and the CLI</a></li>
-        <li><a href="#serve"><span class="n">09</span>Serving and integrations</a></li>
-        <li><a href="#hooks"><span class="n">10</span>Hooks</a></li>
-        <li><a href="#accuracy"><span class="n">11</span>Accuracy and calibration</a></li>
-        <li><a href="#finetune"><span class="n">12</span>Fine-tuning</a></li>
-        <li><a href="#gotchas"><span class="n">13</span>Gotchas</a></li>
-        <li><a href="#worked"><span class="n">14</span>The example tour</a></li>
+        <li><a href="#fits"><span class="n">02</span>Where laya fits</a></li>
+        <li><a href="#setup"><span class="n">03</span>Setup and checkpoints</a></li>
+        <li><a href="#questions"><span class="n">04</span>Writing questions</a></li>
+        <li><a href="#results"><span class="n">05</span>Reading the result</a></li>
+        <li><a href="#confidence"><span class="n">06</span>Confidence and abstention</a></li>
+        <li><a href="#scale"><span class="n">07</span>Batch, long docs, many labels</a></li>
+        <li><a href="#typed"><span class="n">08</span>Typed output</a></li>
+        <li><a href="#cli"><span class="n">09</span>Presets and the CLI</a></li>
+        <li><a href="#serve"><span class="n">10</span>Serving and integrations</a></li>
+        <li><a href="#hooks"><span class="n">11</span>Hooks</a></li>
+        <li><a href="#accuracy"><span class="n">12</span>Accuracy and calibration</a></li>
+        <li><a href="#finetune"><span class="n">13</span>Fine-tuning</a></li>
+        <li><a href="#gotchas"><span class="n">14</span>Gotchas</a></li>
+        <li><a href="#worked"><span class="n">15</span>The example tour</a></li>
       </ol>
     </nav>
 
@@ -517,6 +518,72 @@
       </section>
 
       <!-- ================= 02 ================= -->
+      <section id="fits">
+        <h2>Where laya fits</h2>
+
+        <p class="lede">Every preset the project ships is operational triage rather than knowledge work. That is the clearest statement of what the library is for, and it comes with a filter: three conditions decide whether a use case fits at all.</p>
+
+        <h3>The filter</h3>
+
+        <ul class="plain">
+          <li><strong>You can enumerate the answers.</strong> A choice, a scale, or a yes/no. If the option space only emerges after reasoning about the input, this is the wrong tool.</li>
+          <li><strong>You are deciding at volume, or under a latency budget.</strong> The published figures — roughly 33&nbsp;ms for a single question, 7.2&nbsp;ms/question batched, on a T4 — matter when the alternative is paying per token or waiting on a network round trip.</li>
+          <li><strong>You need to know when it is unsure.</strong> The calibrated <code>answer_confidence</code> and the abstention gate are the differentiator. If nothing downstream acts on uncertainty, a fixed-head classifier is cheaper and simpler.</li>
+        </ul>
+
+        <p>All three and laya fits well. Fail the first and you want generation. Fail the third and an encoder with a fixed head does the job. Fail the second and a frontier model will simply be more accurate.</p>
+
+        <h3>What the shipped presets target</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Preset</th><th>The decision</th><th>What it replaces</th></tr></thead>
+            <tbody>
+              <tr><td><code>triage_questions()</code></td><td>intent, urgency, frustration, refund requested, churn risk</td><td>a rules engine, or an LLM call per ticket</td></tr>
+              <tr><td><code>email_questions()</code></td><td>category, spam, phishing, urgency, needs reply</td><td>an email gateway's heuristic scoring</td></tr>
+              <tr><td><code>guard_questions()</code></td><td>jailbreak, injection, sensitive data, harm severity</td><td>an LLM screening call <em>before</em> your LLM call</td></tr>
+              <tr><td><code>moderation_questions()</code></td><td>toxic, harassment, threat, spam, severity</td><td>a moderated-content classifier</td></tr>
+              <tr><td><code>router_questions()</code></td><td>difficulty, domain, needs tools, is sensitive</td><td>hand-written routing rules between model tiers</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The pairings are the tell. <code>email_questions()</code> ships alongside <code>clean_email_body()</code>, which strips quoted reply history, signature blocks and disclaimers in four languages — that is not a generic text utility, it is something someone built after running real inbound mail through it. And <code>guard_questions()</code> exists to sit in front of a generative model, which is why the latency claim matters: it has to be cheaper than the call it is protecting.</p>
+
+        <h3>The same shape, your own labels</h3>
+
+        <div class="ledger">
+          <div><span class="k">closed-schema extraction</span> <span class="v">&mdash; <code>decide()</code> turns free text into typed fields, but only where each field's value space is enumerable: a clause type, a product category, a support intent. A field it is unsure of comes back <code>None</code>, which is the difference between occasional nulls and silently invented categories.</span></div>
+          <div><span class="k">tool and agent routing</span> <span class="v">&mdash; "which of these twelve actions does this request need?" The project's browser-agent case study is exactly this, and it documents the failure modes that bite: class-imbalance shortcuts, templated phrasing leaking into targets.</span></div>
+          <div><span class="k">escalation gating</span> <span class="v">&mdash; decide when to hand off to a human or a larger model. The most commercially interesting pattern here, because it is what makes automation safe to ship. Note the project's own study found confidence-gated escalation performed <em>worse</em> than the small head alone: promising, not proven.</span></div>
+          <div><span class="k">rubric grading</span> <span class="v">&mdash; <code>LayaEvaluator</code> scores outputs against criteria without generating, at a volume where an LLM judge would be too expensive.</span></div>
+        </div>
+
+        <h3>Real, but secondary</h3>
+
+        <ul class="plain">
+          <li><strong>Multilingual at scale.</strong> One router, 100+ languages, no per-language models. The routing decision is free to compute, so it costs nothing to call per request.</li>
+          <li><strong>On-premises and air-gapped.</strong> 421M parameters, runs on CPU, no outbound calls. For a regulated deployment that is a requirement rather than a preference.</li>
+          <li><strong>Very high volume.</strong> Millions of decisions a day, where per-token cost rather than accuracy is the binding constraint.</li>
+        </ul>
+
+        <h3>Where it is the wrong tool</h3>
+
+        <ul class="plain">
+          <li><strong>Unbounded extraction.</strong> "Pull every entity out of this document" has no option list, so there is nothing to put in the slots.</li>
+          <li><strong>Reasoning, maths, planning.</strong> There is no chain of thought. It maps a state onto options you have already thought of.</li>
+          <li><strong>Bespoke labels, zero-shot.</strong> Measured at 0.362 against a 0.318 random baseline on arbitrary typed decisions. Fine-tuning is what makes it work there, and that needs a teacher you trust.</li>
+          <li><strong>Many-label choice questions.</strong> Option text is capped at 48 tokens and shares one budget. Shortlisting is the workaround and it is lossy: on a twelve-label question it dropped both <code>billing</code> and <code>refunds</code> and answered <code>security</code>, where the full label set answered <code>refunds</code>.</li>
+          <li><strong>Decisions that cannot be recovered from.</strong> The triage preset's <code>churn_risk</code> returned <strong>0.089</strong> on a message reading <em>"or I cancel."</em> These are heuristics to validate against your own data, not oracles.</li>
+        </ul>
+
+        <div class="note">
+          <span class="note-head">The one-line version</span>
+          <p>Laya targets the decision a support agent or a routing rule makes in the first two seconds of reading something &mdash; at a volume where an LLM call is too expensive, in a place where a regex or a fixed-head classifier is too brittle, and where the system needs to know when to stop and ask for help.</p>
+        </div>
+      </section>
+
+      <!-- ================= 03 ================= -->
       <section id="setup">
         <h2>Setup and checkpoints</h2>
 
@@ -570,7 +637,7 @@ router = Router(agent_kwargs={<span class="s">"compile"</span>: <span class="k">
         </div>
       </section>
 
-      <!-- ================= 03 ================= -->
+      <!-- ================= 04 ================= -->
       <section id="questions">
         <h2>Writing questions</h2>
         <p>Three types. Each question is a dict with <code>type</code>, <code>instructions</code>, and <code>criteria</code>.</p>
@@ -624,7 +691,7 @@ router = Router(agent_kwargs={<span class="s">"compile"</span>: <span class="k">
         </ul>
       </section>
 
-      <!-- ================= 04 ================= -->
+      <!-- ================= 05 ================= -->
       <section id="results">
         <h2>Reading the result</h2>
         <p>Four top-level keys: <code>model</code>, <code>answers</code>, <code>usage</code>, <code>routing</code>. The <code>routing</code> key is added by <code>Router</code>; a bare <code>Agent</code> returns the other three.</p>
@@ -659,7 +726,7 @@ router = Router(agent_kwargs={<span class="s">"compile"</span>: <span class="k">
         <p><code>output_tokens</code> is always 0. Laya never generates text.</p>
       </section>
 
-      <!-- ================= 05 ================= -->
+      <!-- ================= 06 ================= -->
       <section id="confidence">
         <h2>Confidence and abstention</h2>
 
@@ -730,7 +797,7 @@ router.predict(state, questions, min_confidence=thresholds)</pre></div>
         </div>
       </section>
 
-      <!-- ================= 06 ================= -->
+      <!-- ================= 07 ================= -->
       <section id="scale">
         <h2>Batch, long docs, many labels</h2>
 
@@ -773,7 +840,7 @@ result = predict_shortlist(agent, state, questions,
         </div>
       </section>
 
-      <!-- ================= 07 ================= -->
+      <!-- ================= 08 ================= -->
       <section id="typed">
         <h2>Typed output</h2>
         <p><code>decide()</code> maps a schema onto questions and hands back schema-shaped values, so nothing downstream parses a label string. A plain JSON-schema dict needs no extra dependency; a pydantic model needs <code>laya[structured]</code>.</p>
@@ -808,7 +875,7 @@ router.decide(<span class="s">"I was charged twice, refund me or I cancel."</spa
         <p>Limits: 32 properties, 32 options, 10 score levels.</p>
       </section>
 
-      <!-- ================= 08 ================= -->
+      <!-- ================= 09 ================= -->
       <section id="cli">
         <h2>Presets and the CLI</h2>
 
@@ -979,7 +1046,7 @@ is_sensitive: 0.840  [low-confidence]</pre></div>
         <p>Batch mode also assumes one request per line. When each request needs its own question set, use <code>predict_batch</code> with a list of request dicts instead.</p>
       </section>
 
-      <!-- ================= 09 ================= -->
+      <!-- ================= 10 ================= -->
       <section id="serve">
         <h2>Serving and integrations</h2>
 
@@ -1021,7 +1088,7 @@ laya-evals run dataset.jsonl --min-accuracy <span class="n">0.9</span> --max-ece
         <p>Metrics include ECE, Brier, AURC and selective accuracy, with per-slice gates so a slice cannot regress while the overall number improves. <code>--onnx</code> scores an export through the same gates as the torch path.</p>
       </section>
 
-      <!-- ================= 10 ================= -->
+      <!-- ================= 11 ================= -->
       <section id="hooks">
         <h2>Hooks</h2>
         <p>Six lifecycle events: <code>on_route</code>, <code>on_load</code>, <code>on_evict</code>, <code>on_predict_start</code>, <code>on_predict_end</code>, <code>on_error</code>. Subclass <code>BaseHook</code> and implement only what you need.</p>
@@ -1046,7 +1113,7 @@ router = Router(hooks=[Metrics()], hooks_raise=<span class="k">False</span>, hoo
         <p><code>hooks_raise=True</code> (the default) lets a broken hook fail the request; set it false to downgrade to a warning. <code>hooks_timeout</code> bounds each hook call on a worker thread &mdash; it protects the request, not the process, since the thread cannot be interrupted. Hooks registered per call run after the installed ones.</p>
       </section>
 
-      <!-- ================= 11 ================= -->
+      <!-- ================= 12 ================= -->
       <section id="accuracy">
         <h2>Accuracy and calibration</h2>
 
@@ -1141,7 +1208,7 @@ affected entries as uncalibrated.</pre></div>
         <p>The cause is a mismatch worth knowing about, because it will bite you the moment you fit your own temperatures: the fitters accept values in <code>[0.1, 10]</code>, but the agent <strong>clamps to <code>[0.5, 5.0]</code> on load</strong>. The shipped <code>0.1006</code> therefore runs as <code>0.5</code>. Edit <code>agent.temperature_by_options</code> &mdash; the copy <code>predict()</code> actually reads &mdash; rather than <code>agent.cfg</code>, or a value below 0.5 will silently run clamped.</p>
       </section>
 
-      <!-- ================= 12 ================= -->
+      <!-- ================= 13 ================= -->
       <section id="finetune">
         <h2>Fine-tuning</h2>
 
@@ -1328,7 +1395,7 @@ agent.predict(state, questions)   <span class="c"># same call, same answer shape
         </div>
       </section>
 
-      <!-- ================= 13 ================= -->
+      <!-- ================= 14 ================= -->
       <section id="gotchas">
         <h2>Gotchas</h2>
         <ul class="gotchas">
@@ -1344,7 +1411,7 @@ agent.predict(state, questions)   <span class="c"># same call, same answer shape
         </ul>
       </section>
 
-      <!-- ================= 14 ================= -->
+      <!-- ================= 15 ================= -->
       <section id="worked">
         <h2>The example tour</h2>
         <p><code>main.py</code> in the repository is a twelve-section tour that runs end to end against the cached english checkpoint &mdash; no extra downloads, no configuration. Every number it prints is real output, which is why three of its sections report a result the model got wrong rather than a tidy one.</p>
