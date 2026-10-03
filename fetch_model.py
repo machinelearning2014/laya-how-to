@@ -133,9 +133,11 @@ def bundle_state(root: str, manifest: dict, bundle: str) -> tuple[str, list[str]
     if len(present) < len(files):
         missing = [f for f in files if not os.path.isfile(os.path.join(root, f))]
         return "partial", missing
+    # A digest mismatch usually means the release has moved on and this copy predates it,
+    # which is ordinary when upstream publishes a revision rather than local corruption.
     bad = [f for f in files
            if sha256(os.path.join(root, f)) != manifest["files"].get(f)]
-    return ("complete", []) if not bad else ("corrupt", bad)
+    return ("complete", []) if not bad else ("differs", bad)
 
 
 def extract_verified(archive: str, staging: str, root: str, manifest: dict, bundle: str) -> None:
@@ -170,8 +172,10 @@ def fetch(names: list[str], root: str, base_url: str, check_only: bool) -> None:
             print(f"  {name:<17} already present and verified")
             continue
         if check_only:
-            detail = f" ({len(problems)} file(s) bad/missing)" if problems else ""
-            print(f"  {name:<17} {state.upper()}{detail}")
+            label = {"absent": "not fetched", "partial": "incomplete",
+                     "differs": "out of date"}.get(state, state)
+            detail = f" ({len(problems)} file(s))" if problems else ""
+            print(f"  {name:<17} {label}{detail}")
             todo.append(name)
             continue
         todo.append(name)

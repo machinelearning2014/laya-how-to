@@ -142,14 +142,21 @@ change. Pin with `--tag v2` when you want a fixed revision.
 
 ## Refreshing the mirror when upstream moves
 
+The mirror is a **pinned snapshot**. It records the upstream revision it was built from, and
+nothing polls for changes on its own — the release moves only when you move it. When
+`convaiinnovations/laya` publishes a new revision, refreshing takes five steps.
+
+### 1. Detect
+
 ```bash
-python check_updates.py --from-release    # is the published mirror still current?
+python check_updates.py --from-release
 ```
 
-It compares the Hub's `main` against the revision recorded in the manifest and, when they
-differ, reports exactly what changed — without downloading 2.4 GB, because the Hub publishes a
-content hash per file that the downloader records in its own sidecars. Exit code is `0` when
-current, `1` when an update is available, so it works as a cron or CI check.
+Compares the Hub's current `main` against the revision recorded in the published manifest, and
+reports exactly which files changed. It downloads nothing: the Hub publishes a content hash per
+file (`lfs.sha256` for the weights, `blobId` for the small ones) and the downloader records the
+same values in its sidecars. Exit `0` when current, `1` when an update is available, so it drops
+into a cron job or CI gate unchanged.
 
 ```
   built from: 55cf4c4ebb4ebe31…  (2026-10-03)
@@ -159,18 +166,77 @@ current, `1` when an update is available, so it works as a cron or CI check.
     added     eval/results_v2.json
 ```
 
-When it reports an update:
+If it says `up to date`, stop here.
+
+### 2. Re-download from the Hub
 
 ```bash
 python -c "from huggingface_hub import snapshot_download as d; \
            d('convaiinnovations/laya', local_dir='laya-full', ignore_patterns=['.cache/*'])"
-python build_release.py --source laya-full --out dist
-gh release create v3 dist/*.tar.gz dist/MANIFEST.json --repo machinelearning2014/laya-how-to
 ```
 
-Publish with a new tag, never an overwrite — assets are immutable. Existing mirrors keep
-working; they are simply pinned to the revision they were built from, which is why the
-manifest records `revision` rather than only file digests.
+Detection only says *something* moved; this is what says exactly what. It refreshes `laya-full/`
+in place, re-fetching only the files whose etags changed.
+
+### 3. Rebuild the assets
+
+```bash
+python build_release.py --source laya-full --out dist
+```
+
+Deterministic, and it records the new revision in `dist/MANIFEST.json`. Confirm the revision it
+reports is the one you expect — the next step derives the tag from it.
+
+### 4. Publish under a revision-derived tag
+
+```bash
+TAG="rev-$(python -c "import json;print(json.load(open('dist/MANIFEST.json'))['revision'][:12])")"
+
+gh release create "$TAG" dist/*.tar.gz dist/MANIFEST.json \
+  --repo machinelearning2014/laya-how-to \
+  --title "laya checkpoints ($TAG)" \
+  --notes "Mirror of convaiinnovations/laya at the revision above."
+```
+
+Deriving the tag from the revision rather than counting up makes a re-run idempotent: publishing
+the same revision twice stops at "tag already exists" instead of creating a second release for a
+change already published. Assets are **immutable**, so this must always be a new tag — never
+`--clobber` onto an existing release.
+
+**If it returns 404**, `gh` is authenticated as an account without admin on this repo. Reads
+succeed either way because the repo is public, so only the write fails — and GitHub reports
+insufficient permission as `404`, not `403`, which reads like a missing release. Use the owning
+account's token for the write:
+
+```bash
+TOKEN=$(env -u GITHUB_TOKEN gh auth token --user machinelearning2014)
+GH_TOKEN="$TOKEN" gh release create "$TAG" ...
+```
+
+### 5. Refresh your own mirror and verify
+
+```bash
+curl -sIL https://github.com/machinelearning2014/laya-how-to/releases/latest/download/MANIFEST.json | head -1
+python fetch_model.py           # pulls the new revision into ~/.laya/mirror
+python fetch_model.py --check   # verifies every file against the new manifest
+```
+
+`/releases/latest/download` follows the newest release, so `fetch_model.py` picks up the new tag
+with no code change. Expect the affected bundles to re-download: a local mirror built from the
+previous revision **fails verification against the new manifest** and reports `out of date`,
+which is the intended behaviour rather than corruption.
+
+### Keeping the release list bounded
+
+Each revision adds ~2.16 GB permanently, and old releases do not delete themselves. Once the new
+one verifies, prune:
+
+```bash
+gh release delete rev-<old-sha> --repo machinelearning2014/laya-how-to --yes --cleanup-tag
+```
+
+Keeping the two or three most recent leaves you something to fall back to without accumulating
+indefinitely.
 
 ## The three question types
 
