@@ -40,6 +40,45 @@ Three of the twelve sections print a result the model got wrong, on purpose — 
 score question, a relabelled `noul`, and a shortlist that drops the correct label. Each is
 explained where it appears, because those rough edges are more useful to read than a tidy demo.
 
+## Try it from the CLI
+
+No Python needed for the fastest path. Routing loads no checkpoint at all:
+
+```bash
+laya "I was charged twice"      # -> english, ~40ms, nothing downloaded
+```
+
+Add `--predict` to answer. `--preset` picks a ready-made question set (`email`, `guard`,
+`moderation`, `router`, `triage`); `--questions FILE` takes your own, as JSON:
+
+```bash
+laya "I was charged twice, refund me or I cancel" --preset triage --predict
+```
+
+```
+intent      : refund (p=0.899)
+is_urgent   : 0.154
+frustration : 1.87
+refund_requested: 0.909
+churn_risk  : 0.089
+```
+
+Batch a file, or stdin, as JSONL:
+
+```bash
+laya --batch tickets.txt --predict --json
+cat tickets.txt | laya --batch - --predict --json
+```
+
+`laya --help` lists every flag, and running it with no text gives an interactive REPL that
+shares one Router across requests.
+
+Four commands install with the package. `laya` and `laya-evals` need only core dependencies;
+`laya-serve` needs `pip install "laya[serve]"` and `laya-mcp-server` needs
+`pip install "laya[mcp]"` — without the extra they exit with a `ModuleNotFoundError`. The
+reference page's CLI section documents every mode, including which features have no CLI
+surface at all.
+
 ## The three question types
 
 ```python

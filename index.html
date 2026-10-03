@@ -845,6 +845,138 @@ laya                                                   <span class="c"># interac
         <p><code>--questions</code> takes the same dict the SDK takes, as JSON: either the mapping, or <code>{"state_key": "body", "questions": {...}}</code> when the instructions name a field other than the default <code>request</code>. That is the payoff for the backtick convention above.</p>
 
         <p><code>--lang</code> is decisive &mdash; it picks the checkpoint and skips detection. <code>--lang-guess</code> is the soft sibling: it nudges routing but still falls through to the detector. <code>--min-confidence</code> requires one of <code>--predict</code>, <code>--preset</code> or <code>--questions</code>, and errors clearly if you forget.</p>
+
+        <h3>Four console scripts</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Command</th><th>Needs</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>laya</code></td><td>core</td><td>route or answer a request from the terminal</td></tr>
+              <tr><td><code>laya-evals</code></td><td>core</td><td><code>validate</code>, <code>run</code> and <code>compare</code> against a JSONL dataset</td></tr>
+              <tr><td><code>laya-serve</code></td><td><code>laya[serve]</code></td><td>the HTTP API</td></tr>
+              <tr><td><code>laya-mcp-server</code></td><td><code>laya[mcp]</code></td><td>MCP tools for an agent host</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The first two run on core dependencies alone. The other two exit with a <code>ModuleNotFoundError</code> until their extra is installed &mdash; that is the whole failure mode, and the fix is the <code>pip install</code> in the table.</p>
+
+        <h3>Mode 1: routing, which loads no weights</h3>
+
+        <div class="codewrap">
+          <div class="codeblock is-accent"><pre>$ laya <span class="s">"I was charged twice"</span>
+Model     : english
+Reason    : English Latin text
+Detected  : {<span class="s">"script"</span>: <span class="s">"latin"</span>, <span class="s">"language"</span>: <span class="s">"en"</span>, <span class="s">"is_english"</span>: <span class="k">true</span>, ...}</pre></div>
+        </div>
+
+        <p>This is the default. No checkpoint is touched, so the whole process finishes in about <strong>40&nbsp;ms</strong> &mdash; fast enough to shell out to per request, and useful on its own if all you need is which model and language a request resolves to.</p>
+
+        <h3>Mode 2: answering</h3>
+
+        <p>Three ways to supply the questions. <code>--predict</code> is what loads the checkpoint.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>laya <span class="s">"..."</span> --predict                      <span class="c"># the router questions (difficulty, domain, needs_tools, is_sensitive)</span>
+laya <span class="s">"..."</span> --preset triage --predict        <span class="c"># a preset; implies --predict</span>
+laya <span class="s">"..."</span> --questions q.json               <span class="c"># your own questions; implies --predict</span></pre></div>
+        </div>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>$ laya <span class="s">"I was charged twice, refund me or I cancel"</span> --preset triage --predict
+
+intent      : refund (p=0.899)
+is_urgent   : 0.154
+frustration : 1.87
+refund_requested: 0.909
+churn_risk  : 0.089</pre></div>
+        </div>
+
+        <div class="note">
+          <span class="note-head">Read that last line before trusting the preset</span>
+          <p>The message says <em>"or I cancel"</em>, and the triage preset's <code>churn_risk</code> reads <strong>0.089</strong>. An equivalent question worded <code>"Does `message` threaten to cancel or leave?"</code> scores 0.84 on the longer version of the same complaint. The preset asks a subtly different thing &mdash; whether the customer may <em>leave</em> &mdash; but a near-zero on an explicit cancellation threat is exactly the miss that breaks a churn-escalation rule. Test presets against your own data rather than adopting them on the strength of their names.</p>
+        </div>
+
+        <h3>Mode 3: batch</h3>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>laya --batch tickets.txt                              <span class="c"># routing only, one aligned line per request</span>
+laya --batch tickets.txt --predict --json             <span class="c"># JSONL, one object per request</span>
+cat tickets.txt | laya --batch - --predict --json     <span class="c"># stdin</span>
+laya --batch tickets.txt --predict --batch-size <span class="n">8</span> --sort-by-length</pre></div>
+        </div>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>$ laya --batch tickets.txt
+english        English Latin text  &lt;- I was charged twice
+multilingual   Latin script but language looks like <span class="s">'de'</span>, not English  &lt;- Guten Tag, ...
+english        English Latin text  &lt;- The app crashes on launch</pre></div>
+        </div>
+
+        <p><code>--batch-size</code> bounds how many requests share a forward pass, and <code>--sort-by-length</code> groups similar sizes inside it &mdash; a pass pads everything to its longest member, so mixing a two-line request with a two-paragraph one wastes most of the compute. The flag needs a <code>--batch-size</code> below the number of requests, since one pass over the whole file has no group to reorder.</p>
+
+        <div class="note">
+          <span class="note-head">A mixed-language batch loads more than one checkpoint</span>
+          <p>Routing runs per request, so one German line in an English batch pulled in the 322M multilingual checkpoint on top of the 421M English one. That is correct behaviour and worth knowing before you point a batch at a multilingual pile on a small machine. Force it with <code>--model</code> if you would rather pay for one model.</p>
+        </div>
+
+        <p><code>laya-evals</code> takes a <strong>JSONL dataset</strong>, not the plain-text lines <code>--batch</code> accepts. Handing it a text file fails with <code>is not valid JSON: Expecting value: line 1 column 1</code>, which is the error to expect if you mix the two up.</p>
+
+        <h3>Mode 4: interactive</h3>
+
+        <p>Run <code>laya</code> with no text and you get a REPL sharing one Router across requests, so the checkpoint loads once. <code>quit</code>, <code>exit</code> or Ctrl-D ends it.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>$ laya
+Laya interactive mode. Type a request and press Enter; Ctrl-D or 'quit' to exit.
+laya&gt;</pre></div>
+        </div>
+
+        <h3>Overrides and the confidence flag</h3>
+
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Flag</th><th>Effect</th></tr></thead>
+            <tbody>
+              <tr><td><code>--model NAME</code></td><td>pin a checkpoint by name, alias, any casing, or <code>auto</code> to route</td></tr>
+              <tr><td><code>--lang</code></td><td>force a language; picks the checkpoint and skips detection</td></tr>
+              <tr><td><code>--lang-guess</code></td><td>soft hint: checked after <code>--lang</code>, before the detector</td></tr>
+              <tr><td><code>--task</code></td><td>force a typed-decisions workflow</td></tr>
+              <tr><td><code>--max-len</code>, <code>--head-max-len</code></td><td>token budgets; raise the head budget for many-label questions</td></tr>
+              <tr><td><code>--device</code></td><td><code>cpu</code>, <code>cuda</code>, <code>mps</code>&hellip;</td></tr>
+              <tr><td><code>--json</code></td><td>raw result; JSONL in batch mode</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Pinning without loading is free: <code>laya "hello" --model ml</code> answers <code>Model: multilingual, Reason: explicit model='multilingual'</code>, and <code>--lang de</code> gives <code>Reason: explicit lang='de'</code>. Both are routing-only, so neither touches a checkpoint.</p>
+
+        <div class="codewrap">
+          <div class="codeblock"><pre>$ laya <span class="s">"I was charged twice"</span> --predict --min-confidence <span class="n">0.9</span>
+
+difficulty  : 1.68  [low-confidence]
+domain      : chitchat (p=0.283)  [low-confidence]
+needs_tools : 0.036
+is_sensitive: 0.840  [low-confidence]</pre></div>
+        </div>
+
+        <p><code>--min-confidence</code> <em>marks</em> rather than refuses: the answer is kept and annotated, with the same <code>answer_confidence</code> gate the library applies. If you want a field dropped to <code>None</code>, that is <code>decide(min_confidence=...)</code> in the library.</p>
+
+        <h3>What the CLI cannot do</h3>
+
+        <p>The command line covers routing, prediction, presets, your own questions, batch and the confidence flag. These are library-only, and no flag reaches them:</p>
+
+        <ul class="plain">
+          <li><code>decide()</code> / <code>decide_batch()</code> &mdash; schema-driven typed output, including abstaining a field to <code>None</code></li>
+          <li>hooks &mdash; logging, metrics, and <code>ctx.skip</code> caching</li>
+          <li>calibration &mdash; <code>records_from_labeled</code>, temperature and threshold fitting</li>
+          <li><code>shortlist</code> for high-cardinality choice questions</li>
+          <li><code>predict_long</code> windowed scanning, and per-request token budgets inside a batch</li>
+          <li>agent-level options such as <code>compile</code> and <code>fast</code></li>
+        </ul>
+
+        <p>Batch mode also assumes one request per line. When each request needs its own question set, use <code>predict_batch</code> with a list of request dicts instead.</p>
       </section>
 
       <!-- ================= 09 ================= -->
