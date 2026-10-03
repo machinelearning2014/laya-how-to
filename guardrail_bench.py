@@ -156,8 +156,12 @@ def main() -> None:
 
     sources = model_sources()
     where = "local mirror" if is_fully_local(sources) else f"hub (missing {', '.join(missing(sources))})"
+    # Always answer the majority class. A question that cannot beat this is not measuring
+    # anything, and the usual reason is that the label and the question disagree.
+    baseline = max(positives, len(rows) - positives) / len(rows)
     print(f"\n  data      {args.data}")
-    print(f"  rows      {len(rows)}  ({positives} positive, {len(rows) - positives} negative)")
+    print(f"  label     {args.label}   ({positives} = 1, {len(rows) - positives} = 0)")
+    print(f"  baseline  {baseline:.1%}   (always answer the majority class)")
     print(f"  questions {source}  ->  {', '.join(noul)}")
     print(f"  weights   {where}")
 
@@ -184,6 +188,18 @@ def main() -> None:
     qid, acc, p, pred, correct, conf = primary
     print(f"\n  best question: {qid}  ({acc:.1%} at full coverage, "
           f"{len(rows) - int(correct.sum())} of {len(rows)} wrong)")
+
+    if acc <= baseline:
+        print(f"\n  {'!' * 70}")
+        print(f"  NOT MEASURING ANYTHING: {acc:.1%} does not beat the {baseline:.1%} you get by")
+        print(f"  always answering the same thing. The usual cause is that the label and the")
+        print(f"  question describe different decisions:")
+        print(f"      labels in  {os.path.basename(args.data)}  ->  {args.label!r}")
+        print(f"      question   {source}  ->  {list(noul)!r}")
+        print(f"  Nothing checks that these correspond, so an unmatched pair scores near")
+        print(f"  chance and blames the model. Pass --data with rows labelled for this")
+        print(f"  question, or --questions with a question that matches these labels.")
+        print(f"  {'!' * 70}")
 
     print(f"\n{'=' * 74}\n  Selective curve -- {qid}\n{'=' * 74}")
     print(f"  {'threshold':>9} {'coverage':>9} {'accuracy':>9} {'error':>7}   {'':<24} n")
