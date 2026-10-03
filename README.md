@@ -252,15 +252,16 @@ python guardrail_bench.py --questions q.json --preset guard
 ```
 
 Rows are one JSON object per line — `{"text": "...", "injection": 0|1}` — so you can point it
-at your own traffic once someone has labelled a sample of it.
+at your own traffic once someone has labelled a sample of it. The label column is whatever
+column holds 0/1 values: it is inferred and reported, so `--label` is only needed when a file
+has several such columns and the choice is ambiguous.
 
 Two matched shape references ship with it, in a different domain from the guardrail set so
 they read as templates rather than a second benchmark:
 
 ```bash
 python guardrail_bench.py --data data/sample_rows.jsonl \
-                          --questions data/sample_questions.json \
-                          --label refund_request
+                          --questions data/sample_questions.json
 ```
 
 `sample_rows.jsonl` is ten labelled support messages and `sample_questions.json` is the one
@@ -268,8 +269,10 @@ question they are scored against. Two things they demonstrate that are easy to g
 
 - **The label and the question must describe the same decision.** `--data` supplies the
   examples and their correct answers; `--questions` defines what the model is asked. Point
-  one at refunds and the other at injections and every number is noise, because nothing
-  checks that the two correspond.
+  one at refunds and the other at injections and every number is noise — the tool prints both
+  in its header, and warns when accuracy fails to beat the majority-class baseline, which is
+  the signature of an unmatched pair. On small sets that warning can miss: with ten rows a
+  mismatched question can clear the baseline by luck, so read the header.
 - **`note: "hard negative: ..."` puts a row in its own accuracy group.** Those are the rows
   that merely read like a positive, and they are where the failures concentrate: on the
   sample set the question gets 100% on clean negatives and 67% on hard ones.

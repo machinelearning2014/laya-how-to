@@ -43,7 +43,21 @@ DEFAULT_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "data", "guardrail_eval.jsonl")
 
 
-def load_rows(path: str, label: str) -> list[dict]:
+def label_candidates(rows: list[dict]) -> list[str]:
+    """Columns present in every row whose values are all 0/1 -- the plausible labels."""
+    keys = set().union(*[set(r) for r in rows]) - {"text", "note"}
+    out = []
+    for key in sorted(keys):
+        if not all(key in r for r in rows):
+            continue
+        values = [r[key] for r in rows]
+        if all(isinstance(v, bool) or (isinstance(v, int) and v in (0, 1)) for v in values):
+            out.append(key)
+    return out
+
+
+def load_rows(path: str, label: str | None) -> tuple[list[dict], str, bool]:
+    """(rows, label column, whether it was inferred rather than given)."""
     if not os.path.isfile(path):
         raise SystemExit(
             f"no such data file: {path}\n"
@@ -61,18 +75,36 @@ def load_rows(path: str, label: str) -> list[dict]:
                 row = json.loads(line)
             except json.JSONDecodeError as e:
                 raise SystemExit(f"{path}:{n} is not valid JSON: {e}") from None
+            if not isinstance(row, dict):
+                raise SystemExit(f"{path}:{n} must be a JSON object, not {type(row).__name__}")
             if "text" not in row:
                 raise SystemExit(f"{path}:{n} needs a 'text' field")
-            if label not in row:
-                raise SystemExit(
-                    f"{path}:{n} has no {label!r} field\n"
-                    f"  the label column is set by --label (default 'injection');\n"
-                    f"  pass --label with the name of your 0/1 field if it differs"
-                )
             rows.append(row)
     if not rows:
         raise SystemExit(f"{path} has no rows")
-    return rows
+
+    if label is not None:  # given explicitly: it must be there, and we do not guess
+        absent = [i for i, r in enumerate(rows, 1) if label not in r]
+        if absent:
+            raise SystemExit(
+                f"{path}:{absent[0]} has no {label!r} field, but --label named it.\n"
+                f"  columns present: {', '.join(sorted(set().union(*[set(r) for r in rows])))}"
+            )
+        return rows, label, False
+
+    candidates = label_candidates(rows)
+    if len(candidates) == 1:
+        return rows, candidates[0], True
+    if not candidates:
+        raise SystemExit(
+            f"{path} has no column of 0/1 values to use as the label\n"
+            f"  columns present: {', '.join(sorted(set().union(*[set(r) for r in rows])))}\n"
+            f"  name one with --label"
+        )
+    raise SystemExit(
+        f"{path} has several 0/1 columns, so the label is ambiguous: "
+        f"{', '.join(candidates)}\n  choose one with --label"
+    )
 
 
 def softmax(z: np.ndarray) -> np.ndarray:
@@ -83,7 +115,7 @@ def softmax(z: np.ndarray) -> np.ndarray:
 def ece_at(records, temperature: float) -> float:
     """ECE over the records with every question's logits scaled by `temperature`."""
     confs, correct = [], []
-    for _qtype, z, target, k in records:
+    for _, z, target, k in records:
         p = softmax(np.asarray(z[:k], dtype=float) / temperature)
         confs.append(float(p.max()))
         correct.append(float(int(p.argmax()) == int(np.argmax(target[:k]))))
@@ -115,7 +147,8 @@ def main() -> None:
     ap.add_argument("--data", default=DEFAULT_DATA, help="labelled JSONL rows")
     ap.add_argument("--preset", default="guard", help="preset question set to evaluate")
     ap.add_argument("--questions", help="JSON file of your own questions instead of a preset")
-    ap.add_argument("--label", default="injection", help="the 0/1 field in each row")
+    ap.add_argument("--label", default=None,
+                    help="the 0/1 field in each row (default: infer it)")
     ap.add_argument("--target-error", type=float, default=0.10,
                     help="error rate to solve an operating point for (default 0.10)")
     ap.add_argument("--only", help="comma-separated question ids to score (default: all yes/no ones)")
@@ -123,8 +156,8 @@ def main() -> None:
                     help="how many misclassifications to list (default 8)")
     args = ap.parse_args()
 
-    rows = load_rows(args.data, args.label)
-    ys = np.array([int(r[args.label]) for r in rows])
+    rows, label, inferred = load_rows(args.data, args.label)
+    ys = np.array([int(r[label]) for r in rows])
     texts = [r["text"] for r in rows]
     positives = int(ys.sum())
 
@@ -160,7 +193,8 @@ def main() -> None:
     # anything, and the usual reason is that the label and the question disagree.
     baseline = max(positives, len(rows) - positives) / len(rows)
     print(f"\n  data      {args.data}")
-    print(f"  label     {args.label}   ({positives} = 1, {len(rows) - positives} = 0)")
+    print(f"  label     {label}   ({positives} = 1, {len(rows) - positives} = 0)"
+          f"{'   (inferred; override with --label)' if inferred else ''}")
     print(f"  baseline  {baseline:.1%}   (always answer the majority class)")
     print(f"  questions {source}  ->  {', '.join(noul)}")
     print(f"  weights   {where}")
@@ -194,7 +228,7 @@ def main() -> None:
         print(f"  NOT MEASURING ANYTHING: {acc:.1%} does not beat the {baseline:.1%} you get by")
         print(f"  always answering the same thing. The usual cause is that the label and the")
         print(f"  question describe different decisions:")
-        print(f"      labels in  {os.path.basename(args.data)}  ->  {args.label!r}")
+        print(f"      labels in  {os.path.basename(args.data)}  ->  {label!r}")
         print(f"      question   {source}  ->  {list(noul)!r}")
         print(f"  Nothing checks that these correspond, so an unmatched pair scores near")
         print(f"  chance and blames the model. Pass --data with rows labelled for this")
@@ -222,7 +256,7 @@ def main() -> None:
     # That split is where the interesting failures live, and it is the reason the bundled
     # sets include them rather than only clean examples.
     hard = np.array([str(r.get("note", "")).lower().startswith("hard negative") for r in rows])
-    groups = [(f"{args.label}=1", ys == 1),
+    groups = [(f"{label}=1", ys == 1),
               ("hard negatives", (ys == 0) & hard),
               ("plain negatives", (ys == 0) & ~hard)]
     if hard.any() and (~hard & (ys == 0)).any():
