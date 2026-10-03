@@ -54,15 +54,19 @@ QUESTIONS = {
 # `Router(models=...)` replaces the whole table, so start from the built-ins and
 # override only the names found locally -- otherwise routing to a checkpoint you
 # have not fetched would fail with "unknown model".
-LOCAL_MODELS = os.path.expanduser("~/.laya/models")
+MIRROR = os.path.expanduser("~/.laya/mirror")
+# The mirror reproduces the Hub repo's layout: english sits at its root, the other two
+# are subfolders. That is the same (repo, subfolder) shape the built-in table uses.
+MIRROR_SUBFOLDERS = {"english": None, "multilingual": "multilingual",
+                     "typed-decisions": "typed-decisions"}
 
 
 def model_sources() -> dict:
     models = dict(laya.DEFAULT_MODELS)
-    for name in models:
-        local = os.path.join(LOCAL_MODELS, name)
-        if os.path.isfile(os.path.join(local, "model.safetensors")):
-            models[name] = local
+    for name, sub in MIRROR_SUBFOLDERS.items():
+        where = os.path.join(MIRROR, sub) if sub else MIRROR
+        if os.path.isfile(os.path.join(where, "model.safetensors")):
+            models[name] = (MIRROR, sub) if sub else MIRROR
     return models
 
 

@@ -5,8 +5,11 @@
 __pycache__/
 *.py[cod]
 
-# Checkpoints fetched into the repo by fetch_model.py --dir models/...
+# Checkpoints fetched into the repo by fetch_model.py --dir ...
 models/
+
+# build_release.py output
+dist/
 
 # macOS
 .DS_Store

@@ -82,35 +82,60 @@ surface at all.
 ## Run it with no Hugging Face access
 
 By default `Router()` pulls weights from the Hub once and caches them. To cut the Hub out
-entirely — offline, air-gapped, or pinned to a copy you control — fetch the checkpoint from
-this repo's GitHub Releases instead:
+entirely — offline, air-gapped, or pinned to a copy you control — build the same three
+checkpoints from this repo's GitHub Releases instead:
 
 ```bash
-python fetch_model.py english           # ~743 MB, SHA-256 verified, unpacked to ~/.laya/models/english
-python fetch_model.py english --check   # re-verify an existing copy; downloads nothing
-python fetch_model.py --list            # what is available
+python fetch_model.py            # the complete mirror: all three checkpoints, ~2.2 GB
+python fetch_model.py english    # or just one
+python fetch_model.py --check    # re-verify the mirror; downloads nothing
+python fetch_model.py --list     # what is available
 ```
 
-The asset lives at [releases/tag/v1](https://github.com/machinelearning2014/laya-how-to/releases/tag/v1)
-and is immutable once published, so a new checkpoint means a new tag rather than an overwrite.
-Only `english` is published this way so far; the other two checkpoints still come from the Hub.
+[releases/tag/v2](https://github.com/machinelearning2014/laya-how-to/releases/tag/v2) carries a
+complete copy of `convaiinnovations/laya` — all 38 files — as four archives plus a
+`MANIFEST.json` recording the SHA-256 of every file:
+
+| Asset | Contents | Size |
+|---|---|---|
+| `english-ckpt.tar.gz` | the english checkpoint | 778 MB |
+| `multilingual-ckpt.tar.gz` | the multilingual checkpoint | 600 MB |
+| `typed-decisions-ckpt.tar.gz` | the typed-decisions checkpoint | 778 MB |
+| `repo-extras.tar.gz` | README, `.gitattributes`, the `rl_*` modules, `eval/`, `assets/` | 1.8 MB |
+
+Four archives rather than one because GitHub caps a release asset at 2 GB. Extracting all of
+them into one directory reproduces the upstream layout exactly, which is what the script
+does — so the mirror is layout-compatible with the Hub repo itself:
+
+```
+~/.laya/mirror/model.safetensors        <- english sits at the root
+~/.laya/mirror/multilingual/…
+~/.laya/mirror/typed-decisions/…
+~/.laya/mirror/{README.md,assets/,eval/,rl_*.py}
+```
 
 `main.py` picks it up automatically: it starts from the built-in checkpoint table and
-overrides only the names it finds locally, so routing to a checkpoint you have **not**
-fetched still works. Section 01 prints which source each one is using. With `english`
-fetched, `HF_HUB_OFFLINE=1 .venv/bin/python main.py` runs the whole tour with no network.
+overrides only the names it finds in the mirror, so routing to a checkpoint you have **not**
+fetched still works. Section 01 prints the source of each. With the mirror in place,
+`HF_HUB_OFFLINE=1 .venv/bin/python main.py` runs the whole tour — including the German
+request that routes to `multilingual` — with no network and no populated Hub cache.
 
 To point laya at a copy yourself:
 
 ```python
-laya.load("~/.laya/models/english")                     # direct
-Router(models={"english": "~/.laya/models/english"})    # keep routing, swap the storage
+laya.load("~/.laya/mirror")                                  # english, at the root
+Router(models={"english": "~/.laya/mirror",                  # keep routing, swap the storage
+               "multilingual": ("~/.laya/mirror", "multilingual")})
 ```
 
 `predict(..., model=...)` will **not** accept a path — that argument resolves strictly
 against the registry (`english` / `multilingual` / `typed-decisions`), so use `models=` or
-`load`. The script verifies the SHA-256 of `model.safetensors` inside the archive rather
-than the archive itself, so repackaging the tarball does not invalidate the check.
+`load`. Every extracted file is verified against the manifest, not just the weights.
+
+Release assets are **immutable**, so a new upstream revision means a new tag rather than an
+overwrite — `build_release.py` rebuilds the archives deterministically (fixed mtimes, zeroed
+ownership, no gzip timestamp), so a rebuild from the same source produces byte-identical
+files and the recorded digests stay valid.
 
 ## The three question types
 

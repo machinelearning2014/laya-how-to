@@ -1,29 +1,40 @@
 #!/usr/bin/env python3
-"""Fetch a laya checkpoint from this repository's GitHub Releases into a local directory.
+"""Fetch the laya checkpoints from this repository's GitHub Releases instead of Hugging Face.
 
-`Router()` downloads weights from the Hugging Face Hub by default. This script pulls the
-same weights from a GitHub Release asset instead, verifies them by SHA-256, and unpacks
-them, so laya can run with no Hub access at all -- offline, air-gapped, or pinned to an
-exact revision you control.
+`Router()` downloads weights from the Hub by default. This script builds the same three
+checkpoints from GitHub Release assets, so laya can run with no Hub access at all --
+offline, air-gapped, or pinned to a copy you control.
 
-    python fetch_model.py english                    # download, verify, unpack
-    python fetch_model.py english --dir models/en    # choose the destination
-    python fetch_model.py english --check            # verify an existing copy, download nothing
-    python fetch_model.py english --base-url URL     # fetch from somewhere else
+    python fetch_model.py                 # the complete mirror (all three checkpoints)
+    python fetch_model.py english         # just one checkpoint
+    python fetch_model.py --check         # verify the mirror, download nothing
+    python fetch_model.py --list          # what is available
 
-Then point laya at the directory it produced:
+It extracts into one directory that mirrors the upstream Hub repo's layout, so the result
+is layout-compatible with `convaiinnovations/laya` itself:
 
-    laya.load("~/.laya/models/english")              # direct
-    Router(models={"english": "~/.laya/models/english"})   # keep routing, swap the storage
+    ~/.laya/mirror/model.safetensors          <- english sits at the root
+    ~/.laya/mirror/multilingual/…
+    ~/.laya/mirror/typed-decisions/…
+    ~/.laya/mirror/{README.md,assets/,eval/,rl_*.py}
 
-Note that `predict(..., model=...)` will NOT accept this path: the per-call argument
-resolves strictly against the registry (english / multilingual / typed-decisions).
-Use `models=` on the Router, or `laya.load`.
+Point laya at it:
+
+    Router(models={
+        "english":          "~/.laya/mirror",
+        "multilingual":     ("~/.laya/mirror", "multilingual"),
+        "typed-decisions":  ("~/.laya/mirror", "typed-decisions"),
+    })
+
+`main.py` does this automatically. Note that `predict(..., model=...)` will NOT accept a
+path: the per-call argument resolves strictly against the registry (english /
+multilingual / typed-decisions). Use `models=` on the Router, or `laya.load`.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import sys
@@ -33,25 +44,22 @@ import urllib.error
 import urllib.request
 
 REPO = "machinelearning2014/laya-how-to"
-TAG = "v1"
-DEFAULT_DIR = os.path.expanduser("~/.laya/models")
+TAG = "v2"
+DEFAULT_DIR = os.path.expanduser("~/.laya/mirror")
+MANIFEST = "MANIFEST.json"
 
-# One entry per checkpoint. `digest` is the SHA-256 of model.safetensors INSIDE the
-# archive -- the same content hash Hugging Face uses for its blob filenames, and the
-# value `laya.load(..., expected_sha256=...)` wants. Verifying the inner file rather
-# than the tarball means repackaging the archive does not invalidate the check.
-MODELS = {
-    "english": {
-        "asset": "english-ckpt.tar.gz",
-        "digest": "891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c",
-        "size_mb": 743,
-    },
-    # Fill these in when the multilingual and typed-decisions assets are published.
-    # "multilingual": {"asset": "multilingual-ckpt.tar.gz", "digest": "...", "size_mb": 571},
+# checkpoint name -> the archive holding it. "extras" is the repo's remaining files
+# (README, .gitattributes, the rl_* modules, eval/ and assets/).
+BUNDLES = {
+    "english": "english-ckpt.tar.gz",
+    "multilingual": "multilingual-ckpt.tar.gz",
+    "typed-decisions": "typed-decisions-ckpt.tar.gz",
+    "extras": "repo-extras.tar.gz",
 }
+ALL_BUNDLES = list(BUNDLES.values())
 
 
-def sha256_file(path: str, chunk: int = 1 << 20) -> str:
+def sha256(path: str, chunk: int = 1 << 20) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(chunk), b""):
@@ -59,18 +67,12 @@ def sha256_file(path: str, chunk: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def asset_url(base_url: str, asset: str) -> str:
-    return f"{base_url.rstrip('/')}/{asset}"
-
-
-def download(url: str, dest: str) -> None:
-    """Stream to dest, reporting progress, with a clear error on HTTP failure."""
+def download(url: str, dest: str, label: str = "") -> None:
+    """Stream to dest, reporting every 5% so an 800 MB fetch prints ~20 lines."""
     try:
         with urllib.request.urlopen(url) as response, open(dest, "wb") as out:
             total = int(response.headers.get("Content-Length") or 0)
-            seen = 0
-            step = 5  # report every 5%, so an 800 MB fetch prints ~20 lines rather than 800
-            last = -step
+            seen, last, step = 0, -5, 5
             while True:
                 block = response.read(1 << 20)
                 if not block:
@@ -82,91 +84,134 @@ def download(url: str, dest: str) -> None:
                 pct = 100 * seen / total
                 if pct - last >= step:
                     last = pct
-                    sys.stdout.write(f"\r  downloading {seen/1e6:7.1f} / {total/1e6:.0f} MB  ({pct:5.1f}%)")
+                    sys.stdout.write(f"\r  {label} {seen/1e6:7.1f} / {total/1e6:.0f} MB ({pct:5.1f}%)")
                     sys.stdout.flush()
             if total:
-                sys.stdout.write(f"\r  downloaded  {seen/1e6:7.1f} / {total/1e6:.0f} MB  (100.0%)\n")
+                sys.stdout.write(f"\r  {label} {seen/1e6:7.1f} / {total/1e6:.0f} MB (100.0%)\n")
             sys.stdout.flush()
     except urllib.error.HTTPError as e:
         raise SystemExit(
             f"failed to fetch {url}\n  HTTP {e.code} {e.reason}\n"
-            f"  If the release does not exist yet, create it first:\n"
-            f"    gh release create {TAG} <asset> --repo {REPO}"
+            f"  If the release does not exist:\n"
+            f"    python build_release.py --source <full-download> --out dist\n"
+            f"    gh release create {TAG} dist/* --repo {REPO}"
         ) from None
     except urllib.error.URLError as e:
         raise SystemExit(f"failed to fetch {url}\n  {e.reason}") from None
 
 
-def extract(archive: str, target: str) -> None:
-    """Unpack into target, refusing absolute paths and traversal."""
-    os.makedirs(target, exist_ok=True)
+def load_manifest(base_url: str, cache_path: str) -> dict:
+    """Read MANIFEST.json from the release (or from disk when checking offline)."""
+    if not os.path.isfile(cache_path):
+        print(f"  fetching {MANIFEST}")
+        download(f"{base_url.rstrip('/')}/{MANIFEST}", cache_path, label="manifest")
+    with open(cache_path) as f:
+        return json.load(f)
+
+
+def bundle_files(manifest: dict, bundle: str) -> list[str]:
+    files = manifest.get("bundles", {}).get(bundle)
+    if files is None:
+        raise SystemExit(f"{MANIFEST} has no file list for {bundle}")
+    return files
+
+
+def bundle_state(root: str, manifest: dict, bundle: str) -> tuple[str, list[str]]:
+    """('complete'|'partial'|'absent', [problems]) for one bundle against the manifest."""
+    files = bundle_files(manifest, bundle)
+    present = [f for f in files if os.path.isfile(os.path.join(root, f))]
+    if not present:
+        return "absent", []
+    if len(present) < len(files):
+        missing = [f for f in files if not os.path.isfile(os.path.join(root, f))]
+        return "partial", missing
+    bad = [f for f in files
+           if sha256(os.path.join(root, f)) != manifest["files"].get(f)]
+    return ("complete", []) if not bad else ("corrupt", bad)
+
+
+def extract_verified(archive: str, staging: str, root: str, manifest: dict, bundle: str) -> None:
+    """Unpack to staging, verify against the manifest, then move into the mirror."""
+    os.makedirs(staging, exist_ok=True)
     with tarfile.open(archive, "r:gz") as tar:
-        # filter="data" rejects absolute paths, .. traversal, and unsafe links.
-        tar.extractall(target, filter="data")
+        # filter="data" rejects absolute paths, .. traversal and unsafe links
+        tar.extractall(staging, filter="data")
+
+    for rel in bundle_files(manifest, bundle):
+        staged = os.path.join(staging, rel)
+        if not os.path.isfile(staged):
+            raise SystemExit(f"  {bundle}: archive is missing {rel}")
+        want = manifest["files"].get(rel)
+        got = sha256(staged)
+        if want and got != want:
+            raise SystemExit(f"  {bundle}: checksum mismatch for {rel}\n    expected {want}\n    got      {got}")
+        dest = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.move(staged, dest)
 
 
-def verify(directory: str, digest: str) -> bool:
-    weights = os.path.join(directory, "model.safetensors")
-    if not os.path.isfile(weights):
-        return False
-    return sha256_file(weights) == digest
+def fetch(names: list[str], root: str, base_url: str, check_only: bool) -> None:
+    os.makedirs(root, exist_ok=True)
+    manifest = load_manifest(base_url, os.path.join(root, MANIFEST))
 
-
-def fetch(name: str, dest_root: str, base_url: str, check_only: bool = False) -> str:
-    spec = MODELS.get(name)
-    if spec is None:
-        raise SystemExit(f"unknown model {name!r}; known: {', '.join(MODELS) or '(none configured)'}")
-
-    target = os.path.join(dest_root, name)
-
-    if verify(target, spec["digest"]):
-        print(f"  {name}: already present and verified at {target}")
-        return target
+    todo = []
+    for name in names:
+        bundle = BUNDLES[name]
+        state, problems = bundle_state(root, manifest, bundle)
+        if state == "complete":
+            print(f"  {name:<17} already present and verified")
+            continue
+        if check_only:
+            detail = f" ({len(problems)} file(s) bad/missing)" if problems else ""
+            print(f"  {name:<17} {state.upper()}{detail}")
+            todo.append(name)
+            continue
+        todo.append(name)
 
     if check_only:
-        raise SystemExit(f"  {name}: missing or failed verification in {target}")
+        if todo:
+            raise SystemExit(f"\n{len(todo)} bundle(s) not verified: {', '.join(todo)}")
+        print("\n  mirror verified against MANIFEST.json")
+        return
 
-    os.makedirs(dest_root, exist_ok=True)
-    url = asset_url(base_url, spec["asset"])
-    print(f"  {name}: fetching {url}  (~{spec['size_mb']} MB)")
+    for name in todo:
+        bundle = BUNDLES[name]
+        meta = manifest["assets"].get(bundle, {})
+        print(f"  {name:<17} fetching {bundle}  (~{meta.get('size', 0)/1e6:.0f} MB)")
+        with tempfile.TemporaryDirectory(dir=root) as tmp:
+            archive = os.path.join(tmp, bundle)
+            download(f"{base_url.rstrip('/')}/{bundle}", archive, label=f"{name:<17}")
+            extract_verified(archive, os.path.join(tmp, "unpacked"), root, manifest, bundle)
+        print(f"  {name:<17} verified ({meta.get('files', '?')} files)")
 
-    with tempfile.TemporaryDirectory(dir=dest_root) as tmp:
-        archive = os.path.join(tmp, spec["asset"])
-        download(url, archive)
-        print("  verifying…")
-        staged = os.path.join(tmp, "unpacked")
-        extract(archive, staged)
-        if not verify(staged, spec["digest"]):
-            got = sha256_file(os.path.join(staged, "model.safetensors"))
-            raise SystemExit(
-                f"  checksum mismatch for {name}\n    expected {spec['digest']}\n    got      {got}"
-            )
-        # Replace only after the copy verifies, so a failed run cannot leave a half-written dir.
-        shutil.rmtree(target, ignore_errors=True)
-        shutil.move(staged, target)
-
-    print(f"  {name}: verified and unpacked to {target}")
-    return target
+    print(f"\nMirror ready at {root}")
+    print("Point laya at it:")
+    print(f"  Router(models={{'english': {root!r},")
+    print(f"                  'multilingual': ({root!r}, 'multilingual'),")
+    print(f"                  'typed-decisions': ({root!r}, 'typed-decisions')}})")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("model", nargs="?", default="english", help="checkpoint name (default: english)")
-    parser.add_argument("--dir", default=DEFAULT_DIR, help=f"where to unpack (default: {DEFAULT_DIR})")
-    parser.add_argument("--base-url", default=f"https://github.com/{REPO}/releases/download/{TAG}",
-                        help="override the release URL, e.g. to serve assets locally")
-    parser.add_argument("--check", action="store_true", help="verify an existing copy without downloading")
-    parser.add_argument("--list", action="store_true", help="list the checkpoints this script knows")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("names", nargs="*", choices=sorted(BUNDLES) + [], default=None,
+                    help=f"checkpoints to fetch (default: all). One of: {', '.join(sorted(BUNDLES))}")
+    ap.add_argument("--all", action="store_true", help="fetch every bundle (the default)")
+    ap.add_argument("--dir", default=DEFAULT_DIR, help=f"mirror directory (default: {DEFAULT_DIR})")
+    ap.add_argument("--base-url", default=f"https://github.com/{REPO}/releases/download/{TAG}",
+                    help="override the release URL")
+    ap.add_argument("--check", action="store_true", help="verify the mirror; download nothing")
+    ap.add_argument("--list", action="store_true", help="list the bundles")
+    args = ap.parse_args()
 
     if args.list:
-        for name, spec in MODELS.items():
-            print(f"  {name:<14} {spec['asset']:<28} ~{spec['size_mb']} MB")
+        print(f"  release: https://github.com/{REPO}/releases/tag/{TAG}")
+        for name, bundle in BUNDLES.items():
+            print(f"  {name:<17} {bundle}")
         return
 
-    print(f"laya model fetch -> {args.dir}")
-    path = fetch(args.model, args.dir, args.base_url, check_only=args.check)
-    print(f"\nPoint laya at it:\n  laya.load({path!r})\n  Router(models={{{args.model!r}: {path!r}}})")
+    names = args.names or list(BUNDLES)
+    print(f"laya mirror -> {args.dir}")
+    fetch(names, args.dir, args.base_url, args.check)
 
 
 if __name__ == "__main__":

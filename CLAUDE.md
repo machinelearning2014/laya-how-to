@@ -57,12 +57,20 @@ tarball, so repackaging does not invalidate the recorded digest. Build release t
 
 ## Hosting
 
-The `english` checkpoint is published as a GitHub Release asset — tag `v1`, asset
-`english-ckpt.tar.gz` (778,429,593 bytes), which `fetch_model.py` downloads and verifies. Only
-`english` has a release; `multilingual` and `typed-decisions` stay on the Hub, and their entries in
-`fetch_model.py`'s `MODELS` dict are commented out until an asset exists for each. Publishing a new
-checkpoint means a new tag, a recomputed digest in `MODELS`, and a manual re-upload — release assets
-are immutable once uploaded, so replacing one needs a new tag rather than an overwrite.
+Tag `v2` is a complete mirror of `convaiinnovations/laya` — all 38 files, 2.4 GB — as four release
+assets plus a `MANIFEST.json`. `v1` (english only) is superseded and can be deleted.
+
+`build_release.py` produces the assets deterministically: fixed mtimes, zeroed ownership, no gzip
+timestamp, so a rebuild from the same source is byte-identical and the manifest digests stay valid.
+`fetch_model.py` verifies **every** extracted file against `MANIFEST.json`, not just the weights.
+
+The mirror reproduces the upstream layout, so `english` sits at the mirror root and the other two
+are subfolders. That is why `model_sources()` maps them to `MIRROR` or `(MIRROR, subfolder)` — the
+same `(repo, subfolder)` shape the built-in table uses, because the Hub repo packs all three
+checkpoints that way too.
+
+Release assets are immutable, so a new upstream revision needs a new tag and a re-upload rather than
+an overwrite. Bump `TAG` in `fetch_model.py` when you publish one.
 
 **`index.html`** is deliberately self-contained — inline CSS and JS, no external scripts, no build
 tooling, no image assets. The only external request is Google Fonts. Keep it that way; it is served
