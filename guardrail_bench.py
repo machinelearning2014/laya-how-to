@@ -122,8 +122,16 @@ def main() -> None:
     positives = int(ys.sum())
 
     if args.questions:
+        if not os.path.isfile(args.questions):
+            raise SystemExit(f"no such questions file: {args.questions}")
         with open(args.questions) as f:
-            questions = json.load(f)
+            loaded = json.load(f)
+        if not isinstance(loaded, dict):
+            raise SystemExit(f"{args.questions} must contain a JSON object of questions")
+        # Accept both shapes the CLI takes: a bare id -> definition mapping, or the
+        # {"state_key": ..., "questions": {...}} wrapper.
+        inner = loaded.get("questions")
+        questions = inner if isinstance(inner, dict) else loaded
         source = args.questions
     else:
         questions = getattr(laya, f"{args.preset}_questions")()
