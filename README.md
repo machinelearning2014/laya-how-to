@@ -135,9 +135,10 @@ cli.py   return laya.Router(device=args.device, preload=False)
 ```
 
 That reads the built-in checkpoint table, so it always goes to the Hub. It consults no
-environment variables, and its `--model` resolves strictly against the registry rather than
-accepting a path, so there is **no supported way to point it at the mirror**. Offline it fails
-even with a complete mirror on disk:
+environment variables (`LAYA_MODELS` exists, but only `serve.py` reads it), and its `--model`
+resolves strictly against the registry rather than accepting a path — so there is **no
+supported way to point it at the mirror**. Offline it fails even with a complete mirror on
+disk:
 
 ```
 $ HF_HUB_OFFLINE=1 laya "I was charged twice" --predict
@@ -146,20 +147,48 @@ specified revision on the local disk and outgoing traffic has been disabled…)
 ```
 
 `laya_local.py` runs the real CLI with the mirror substituted in, so every flag, mode and
-output format is unchanged:
+output format is unchanged. Build the mirror first, then:
 
 ```bash
-python laya_local.py "I was charged twice" --preset triage --predict
+python laya_local.py "I was charged twice"                    # routing only, loads nothing
+python laya_local.py "refund me or I cancel" --preset triage --predict
+python laya_local.py "I was charged twice" --questions q.json
 python laya_local.py --batch tickets.txt --predict --json
-python laya_local.py --model ml "hello"        # routing only, loads nothing
-python laya_local.py                           # interactive
+cat tickets.txt | python laya_local.py --batch - --predict
+python laya_local.py "hello" --model ml                       # pin a checkpoint
+python laya_local.py "I was charged twice" --predict --min-confidence 0.9
+python laya_local.py                                          # interactive
 ```
 
-It reports which checkpoints it is using on stderr, and **refuses rather than silently
-falling back to the network** if a future laya version builds its Router some other way — a
-patch that quietly stopped applying would otherwise look like a working offline setup that
-was secretly downloading. Verified against a direct API call with the same mirror: identical
-values, and identical to the Hub-backed CLI.
+It runs from any directory — Python puts the script's own folder on `sys.path`, so the
+sibling `local_models` import resolves — and reports its sources on stderr, which keeps
+`--json` output clean:
+
+```
+laya_local: all checkpoints from the local mirror
+```
+
+To confirm it is genuinely offline, force a non-English input: that routes to `multilingual`,
+so it only works if the mirror is in use.
+
+```bash
+HF_HUB_OFFLINE=1 python laya_local.py "Mein Konto wurde zweimal belastet" --predict
+```
+
+The executable bit is not set, so invoke it with `python`. To type `laya` instead:
+
+```bash
+chmod +x laya_local.py
+alias laya="./laya_local.py"      # needs the virtualenv active
+```
+
+It **refuses rather than silently falling back to the network** if a future laya version
+builds its Router some other way — a patch that quietly stopped applying would look like a
+working offline setup that was secretly downloading. Verified against a direct API call with
+the same mirror and the same `{"message": text}` state the CLI builds: identical values.
+
+**Not covered:** `laya-serve` and `laya-mcp-server` construct their own Router and have the
+same Hub dependency. This wrapper does not reach them.
 
 To point laya at a copy yourself:
 
