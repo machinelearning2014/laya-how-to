@@ -14,6 +14,16 @@ human-facing intro:
 - `guardrail_bench.py` — measures accuracy, calibration and the selective curve on labelled rows.
 - `local_models.py` — the shared checkpoint-source helper `main.py` and `guardrail_bench.py` import.
 
+These scripts are run by users on whatever `python3` they have, so keep them portable. All four
+carry `from __future__ import annotations`, and `fetch_model.py` is stdlib-only on purpose.
+
+**Do not add `choices=` to an argument with `nargs="*"`.** Before CPython 3.12.13, argparse calls
+`_check_value(action, [])` when a positional gets no values, and `[] not in choices` raises
+`argument names: invalid choice: []`. That made `fetch_model.py --all` fail on Python 3.10 while
+working on 3.12.13 — reproducible only by running an older interpreter, which is why the venv
+hides it. Validate the values by hand instead (`fetch_model.py` does, and a regression would be
+invisible on this machine; test with `/usr/bin/python3` or a uv-managed 3.10).
+
 There is no package manifest, no build step, and no test suite. Work here is either editing the
 tour, editing the reference page, or verifying a claim about laya's behaviour against the
 installed library.

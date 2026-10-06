@@ -218,7 +218,12 @@ def fetch(names: list[str], root: str, base_url: str, check_only: bool) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("names", nargs="*", choices=sorted(BUNDLES) + [], default=None,
+    # No `choices=` on this positional, deliberately. With nargs="*" and no names given,
+    # argparse before CPython 3.12.13 calls _check_value(action, []) and rejects the empty
+    # list with `invalid choice: []`. That made `--all` fail on older interpreters while
+    # working on newer ones -- a version-dependent failure, which is the worst kind to
+    # debug from a bug report. Validated by hand below so it behaves the same everywhere.
+    ap.add_argument("names", nargs="*", default=None,
                     help=f"checkpoints to fetch (default: all). One of: {', '.join(sorted(BUNDLES))}")
     ap.add_argument("--all", action="store_true",
                     help="fetch every bundle (also the default when no names are given)")
@@ -229,6 +234,13 @@ def main() -> None:
     ap.add_argument("--check", action="store_true", help="verify the mirror; download nothing")
     ap.add_argument("--list", action="store_true", help="list the bundles")
     args = ap.parse_args()
+
+    unknown = [n for n in (args.names or []) if n not in BUNDLES]
+    if unknown:
+        raise SystemExit(
+            f"unknown bundle(s): {', '.join(unknown)}\n"
+            f"  choose from: {', '.join(sorted(BUNDLES))}"
+        )
 
     base_url = args.base_url or release_url(args.tag)
 
