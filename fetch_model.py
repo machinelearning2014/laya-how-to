@@ -109,10 +109,23 @@ def download(url: str, dest: str, label: str = "") -> None:
 
 
 def load_manifest(base_url: str, cache_path: str) -> dict:
-    """Read MANIFEST.json from the release (or from disk when checking offline)."""
-    if not os.path.isfile(cache_path):
-        print(f"  fetching {MANIFEST}")
-        download(f"{base_url.rstrip('/')}/{MANIFEST}", cache_path, label="manifest")
+    """Fetch the release manifest, falling back to a cached copy only when unreachable.
+
+    It is fetched every run rather than cached. The default is `--tag latest`, so a cached
+    manifest would keep reporting the old revision as current -- a published update would
+    be invisible, and every bundle would look 'already present and verified' against a
+    manifest describing a revision that is no longer the latest. It is a 6 KB file.
+    """
+    staged = cache_path + ".incoming"
+    try:
+        download(f"{base_url.rstrip('/')}/{MANIFEST}", staged, label="manifest")
+        shutil.move(staged, cache_path)  # only replace the cached copy once it is complete
+    except SystemExit:
+        if os.path.exists(staged):
+            os.remove(staged)
+        if not os.path.isfile(cache_path):
+            raise
+        print(f"  release unreachable; using the cached {MANIFEST}, which may be stale")
     with open(cache_path) as f:
         return json.load(f)
 
@@ -207,7 +220,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("names", nargs="*", choices=sorted(BUNDLES) + [], default=None,
                     help=f"checkpoints to fetch (default: all). One of: {', '.join(sorted(BUNDLES))}")
-    ap.add_argument("--all", action="store_true", help="fetch every bundle (the default)")
+    ap.add_argument("--all", action="store_true",
+                    help="fetch every bundle (also the default when no names are given)")
     ap.add_argument("--dir", default=DEFAULT_DIR, help=f"mirror directory (default: {DEFAULT_DIR})")
     ap.add_argument("--tag", default=DEFAULT_TAG,
                     help=f"release tag, or 'latest' (default: {DEFAULT_TAG})")
@@ -224,7 +238,14 @@ def main() -> None:
             print(f"  {name:<17} {bundle}")
         return
 
-    names = args.names or list(BUNDLES)
+    if args.all and args.names:
+        raise SystemExit(
+            "--all fetches every bundle, so it takes no names.\n"
+            f"  to fetch a subset, name it: {', '.join(sorted(BUNDLES))}"
+        )
+    # `args.all` was previously accepted and ignored -- it worked only because fetching
+    # everything is already the default, so `--all english` silently fetched one bundle.
+    names = list(BUNDLES) if args.all else (args.names or list(BUNDLES))
     print(f"laya mirror -> {args.dir}   (release: {args.tag})")
     fetch(names, args.dir, base_url, args.check)
 

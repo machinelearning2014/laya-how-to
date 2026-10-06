@@ -251,31 +251,42 @@ python guardrail_bench.py --data mine.jsonl      # your own rows
 python guardrail_bench.py --questions q.json --preset guard
 ```
 
-Rows are one JSON object per line — `{"text": "...", "injection": 0|1}` — so you can point it
-at your own traffic once someone has labelled a sample of it. The label column is whatever
-column holds 0/1 values: it is inferred and reported, so `--label` is only needed when a file
-has several such columns and the choice is ambiguous.
+### The two input formats
 
-Two matched shape references ship with it, in a different domain from the guardrail set so
-they read as templates rather than a second benchmark:
+They are independent, and it is worth being clear about which is which:
 
-```bash
-python guardrail_bench.py --data data/sample_rows.jsonl \
-                          --questions data/sample_questions.json
+- **`--data`** supplies the examples and their correct answers.
+- **`--questions`** defines what the model is asked.
+
+**`--data`** — one JSON object per line. `text` is required; the label column is whichever
+column holds 0/1 values, which is inferred and reported, so `--label` is only needed when a
+file has several such columns:
+
+```jsonl
+{"text": "I was charged twice, please refund the duplicate.", "refund_request": 1}
+{"text": "Where can I download my invoices?", "refund_request": 0}
+{"text": "Refunds take 5-10 days, right? Just checking the policy.", "refund_request": 0, "note": "hard negative"}
 ```
 
-`sample_rows.jsonl` is ten labelled support messages and `sample_questions.json` is the one
-question they are scored against. Two things they demonstrate that are easy to get wrong:
+**`--questions`** — the same question dict laya takes anywhere:
 
-- **The label and the question must describe the same decision.** `--data` supplies the
-  examples and their correct answers; `--questions` defines what the model is asked. Point
-  one at refunds and the other at injections and every number is noise — the tool prints both
-  in its header, and warns when accuracy fails to beat the majority-class baseline, which is
-  the signature of an unmatched pair. On small sets that warning can miss: with ten rows a
-  mismatched question can clear the baseline by luck, so read the header.
-- **`note: "hard negative: ..."` puts a row in its own accuracy group.** Those are the rows
-  that merely read like a positive, and they are where the failures concentrate: on the
-  sample set the question gets 100% on clean negatives and 67% on hard ones.
+```json
+{"refund_request": {"type": "noul",
+                    "instructions": "Does `message` ask for money back or a charge reversed?"}}
+```
+
+Two conventions carry weight. A `note` starting with `"hard negative"` puts that row in its
+own accuracy group — those are rows that merely *read* like a positive, and they are where
+failures concentrate, so a set without them flatters the question. And the label and the
+question **must describe the same decision**: point one at refunds and the other at
+injections and every number is noise that reads like a bad model. The tool prints both in its
+header and warns when accuracy cannot beat the majority-class baseline, but on a small set a
+mismatched pair can clear that baseline by luck, so read the header rather than the warning.
+
+`data/sample_rows.jsonl` and `data/sample_questions.json` are a matched pair in these
+formats, in a different domain from the guardrail set. They exist to be **copied, not
+quoted**: ten rows is not enough for a number to mean anything, and 8-of-10 correct clears a
+60% baseline roughly one time in six.
 
 It reports three things: accuracy per question, calibration (ECE before and after fitting a
 temperature), and **the selective curve** — as the confidence threshold rises, what fraction
