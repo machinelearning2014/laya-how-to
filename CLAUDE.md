@@ -13,6 +13,15 @@ human-facing intro:
 - `fetch_model.py` — pulls a checkpoint from this repo's GitHub Releases instead of the Hub.
 - `guardrail_bench.py` — measures accuracy, calibration and the selective curve on labelled rows.
 - `local_models.py` — the shared checkpoint-source helper `main.py` and `guardrail_bench.py` import.
+- `laya_local.py` — the `laya` CLI with the mirror substituted in; see the CLI note below.
+
+**The installed `laya` command cannot be pointed at the mirror.** `cli.py` builds a bare
+`Router()` and reads no environment variables, and its `--model` resolves strictly against the
+registry instead of accepting a path. `LAYA_MODELS` exists but only `serve.py` reads it. So
+anything that shells out to `laya` needs `laya_local.py`, which patches `laya.Router` before
+calling the real `cli.main()` — the patch works because `cli.make_router` looks the attribute up
+at call time, and the wrapper checks that assumption and exits rather than falling back to the
+network if it ever stops holding.
 
 These scripts are run by users on whatever `python3` they have, so keep them portable. All four
 carry `from __future__ import annotations`, and `fetch_model.py` is stdlib-only on purpose.

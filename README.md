@@ -126,6 +126,41 @@ fetched still works. Section 01 prints the source of each. With the mirror in pl
 `HF_HUB_OFFLINE=1 .venv/bin/python main.py` runs the whole tour — including the German
 request that routes to `multilingual` — with no network and no populated Hub cache.
 
+### The `laya` command needs a wrapper
+
+The installed CLI builds a bare `Router()`:
+
+```python
+cli.py   return laya.Router(device=args.device, preload=False)
+```
+
+That reads the built-in checkpoint table, so it always goes to the Hub. It consults no
+environment variables, and its `--model` resolves strictly against the registry rather than
+accepting a path, so there is **no supported way to point it at the mirror**. Offline it fails
+even with a complete mirror on disk:
+
+```
+$ HF_HUB_OFFLINE=1 laya "I was charged twice" --predict
+laya: could not run Laya (Cannot find an appropriate cached snapshot folder for the
+specified revision on the local disk and outgoing traffic has been disabled…)
+```
+
+`laya_local.py` runs the real CLI with the mirror substituted in, so every flag, mode and
+output format is unchanged:
+
+```bash
+python laya_local.py "I was charged twice" --preset triage --predict
+python laya_local.py --batch tickets.txt --predict --json
+python laya_local.py --model ml "hello"        # routing only, loads nothing
+python laya_local.py                           # interactive
+```
+
+It reports which checkpoints it is using on stderr, and **refuses rather than silently
+falling back to the network** if a future laya version builds its Router some other way — a
+patch that quietly stopped applying would otherwise look like a working offline setup that
+was secretly downloading. Verified against a direct API call with the same mirror: identical
+values, and identical to the Hub-backed CLI.
+
 To point laya at a copy yourself:
 
 ```python
