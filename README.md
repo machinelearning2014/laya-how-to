@@ -17,6 +17,8 @@ single forward pass. No text generation, so there is nothing to parse and nothin
 ## Run the example
 
 ```bash
+git clone https://github.com/machinelearning2014/laya-how-to.git
+cd laya-how-to
 python3 -m venv .venv
 .venv/bin/python -m pip install laya
 .venv/bin/python main.py
@@ -86,11 +88,15 @@ entirely — offline, air-gapped, or pinned to a copy you control — build the 
 checkpoints from this repo's GitHub Releases instead:
 
 ```bash
-python fetch_model.py            # the complete mirror: all three checkpoints, ~2.2 GB
+python fetch_model.py --all      # the complete mirror: all three checkpoints, ~2.2 GB
 python fetch_model.py english    # or just one
 python fetch_model.py --check    # re-verify the mirror; downloads nothing
 python fetch_model.py --list     # what is available
 ```
+
+`--all` is also the default when no names are given; it is spelled out here because it is the
+explicit form to put in a script. Combining it with a name is an error rather than a silent
+pick of one bundle.
 
 [releases/tag/v2](https://github.com/machinelearning2014/laya-how-to/releases/tag/v2) carries a
 complete copy of `convaiinnovations/laya` — all 38 files — as four archives plus a
@@ -217,7 +223,7 @@ GH_TOKEN="$TOKEN" gh release create "$TAG" ...
 
 ```bash
 curl -sIL https://github.com/machinelearning2014/laya-how-to/releases/latest/download/MANIFEST.json | head -1
-python fetch_model.py           # pulls the new revision into ~/.laya/mirror
+python fetch_model.py --all     # pulls the new revision into ~/.laya/mirror
 python fetch_model.py --check   # verifies every file against the new manifest
 ```
 
